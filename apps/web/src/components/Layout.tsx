@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { currentUser, DEMO_USERS, setCurrentUser } from "../lib/user";
+import { isDesktop } from "../lib/desktop";
 
 const NAV = [
   { to: "/", label: "Today", end: true },
   { to: "/workers", label: "Workers" },
   { to: "/renewals", label: "Renewals" },
+  // Printing without dialogs only exists in the desktop app.
+  ...(isDesktop() ? [{ to: "/printers", label: "Printers" }] : []),
 ];
 
 export function Layout() {

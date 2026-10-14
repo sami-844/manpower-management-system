@@ -6,7 +6,7 @@ reports/
 *.log
 .env
 .env.local
-apps/desktop/src-tauri/target/
+**/target/
 apps/desktop/src-tauri/gen/
 test-results/
 playwright-report/

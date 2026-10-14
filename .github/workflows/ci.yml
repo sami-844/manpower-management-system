@@ -7,6 +7,7 @@ on:
 
 jobs:
   test:
+    name: Tests (core, API, web)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -31,14 +32,64 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm test:mutation
+      - name: Mutation testing (gate 80%)
+        run: pnpm test:mutation
       - run: pnpm --filter @mms/web build
 
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mms
+          POSTGRES_PASSWORD: mms
+          POSTGRES_DB: mms_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mms"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://mms:mms@localhost:5432/mms_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @mms/web exec playwright install --with-deps chromium
+      - run: pnpm db:migrate && pnpm db:seed
+      - run: pnpm dev:api &
+      - run: npx wait-on http://localhost:3000/api/health
+      - run: pnpm --filter @mms/web test:e2e
+
   desktop:
+    name: Desktop app (Windows installer)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-      - name: Test the Rust print module
-        working-directory: apps/desktop/src-tauri
-        run: cargo test
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/desktop/print-spooler
+            apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Test the silent-print module on Windows
+        run: pnpm --filter @mms/desktop test:rust
+      - name: Build the installer
+        run: pnpm --filter @mms/desktop build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workforce-windows-installer
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe

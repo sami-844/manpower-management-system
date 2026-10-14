@@ -10,6 +10,8 @@ import { Today } from "./pages/Today";
 import { Workers } from "./pages/Workers";
 import { WorkerFile } from "./pages/WorkerFile";
 import { Renewals } from "./pages/Renewals";
+import { Printers } from "./pages/Printers";
+import { isDesktop } from "./lib/desktop";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, refetchOnWindowFocus: true } } });
 
@@ -24,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="workers" element={<Workers />} />
             <Route path="workers/:id" element={<WorkerFile />} />
             <Route path="renewals" element={<Renewals />} />
+            {isDesktop() && <Route path="printers" element={<Printers />} />}
             <Route path="*" element={<p className="empty">This page doesn't exist.</p>} />
           </Route>
         </Routes>
