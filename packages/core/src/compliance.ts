@@ -114,7 +114,7 @@ export function documentLabel(type: DocumentType): string {
 }
 
 /** For each type, the document with the latest expiry (a renewal supersedes the old one). */
-function latestByType(documents: readonly WorkerDocument[]): Map<DocumentType, WorkerDocument> {
+export function latestByType(documents: readonly WorkerDocument[]): Map<DocumentType, WorkerDocument> {
   const latest = new Map<DocumentType, WorkerDocument>();
   for (const doc of documents) {
     const current = latest.get(doc.type);
