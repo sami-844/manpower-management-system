@@ -28,7 +28,7 @@ cards, rostering, timesheets, payroll and WPS, billing, ledger, supervisor mobil
 
 ```
 packages/core        Domain engines (compliance, renewals, money) — pure TypeScript, no I/O
-apps/api             NestJS API on PostgreSQL 16 (Drizzle, numbered SQL migrations)
+apps/api             NestJS API on Bun and PostgreSQL 16 (Drizzle, numbered SQL migrations)
 apps/web             The shared interface: React + Vite, used by web, desktop and mobile
 apps/desktop
   print-spooler      Rust library: silent batch printing (Windows spooler / CUPS)
@@ -37,22 +37,25 @@ apps/desktop
 
 ## Run it locally
 
-Needs Node 22, pnpm 10 and PostgreSQL 16 (or Docker).
+Needs Bun 1.4, PostgreSQL 16 (or Docker), and Node 22 for the web test and mutation
+tools.
 
 ```bash
-pnpm install
+bun install
 docker compose up -d            # or use a local PostgreSQL with user/password mms
-pnpm db:migrate
-pnpm db:seed                    # 120 fictional workers and 3 sites
-pnpm dev:api                    # http://localhost:3000
-pnpm dev:web                    # http://localhost:5173
+bun run db:migrate
+bun run db:seed                 # 120 fictional workers and 3 sites
+bun run dev:api                 # http://localhost:3000 (runs on Bun)
+bun run dev:web                 # http://localhost:5173
 ```
+
+Production API image (Bun): `docker build -f apps/api/Dockerfile -t workforce-api .`
 
 Desktop app (needs Rust; on Windows also the WebView2 runtime, which ships with Windows 10/11):
 
 ```bash
-pnpm --filter @mms/desktop dev     # opens the desktop window on the dev web app
-pnpm --filter @mms/desktop build   # builds the MSI and EXE installers
+bun run --filter @mms/desktop dev     # opens the desktop window on the dev web app
+bun run --filter @mms/desktop build   # builds the MSI and EXE installers
 ```
 
 Every push to GitHub also builds the Windows installer in CI (Actions → latest run →
@@ -63,10 +66,10 @@ Every push to GitHub also builds the Windows installer in CI (Actions → latest
 Everything is written test-first (see CLAUDE.md).
 
 ```bash
-pnpm test                         # core + API (real database) + web components
-pnpm test:mutation                # proves the core tests catch broken code (gate: 80%)
-pnpm --filter @mms/web test:e2e   # Playwright, desktop and phone sizes, against the running API
-pnpm --filter @mms/desktop test:rust
+bun run test                          # core + API (bun test, real database) + web components (Vitest)
+bun run test:mutation                 # proves the core tests catch broken code (gate: 80%)
+bun run --filter @mms/web test:e2e    # Playwright, desktop and phone sizes, against the running API
+bun run --filter @mms/desktop test:rust
 ```
 
 | Suite | Tests |

@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * End-to-end: the real web app against the real API and database.
- * Start the API (pnpm dev:api) with the seeded dev database first.
+ * Start the API (bun run dev:api) with the seeded dev database first.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -13,7 +13,7 @@ export default defineConfig({
     { name: "phone", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: "pnpm dev",
+    command: "bun run dev",
     url: "http://localhost:5173",
     reuseExistingServer: true,
   },

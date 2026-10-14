@@ -15,8 +15,8 @@ payroll (WPS via Bank Muscat), billing and a finance ledger.
 
 | Path | What | Stack |
 | --- | --- | --- |
-| `packages/core` | Pure domain engines (compliance, money, later payroll and billing). No I/O, no framework. | TypeScript, vitest, Stryker |
-| `apps/api` | Central server: REST API, database, jobs. All business rules run here. | NestJS, Drizzle, PostgreSQL 16 |
+| `packages/core` | Pure domain engines (compliance, money, later payroll and billing). No I/O, no framework. | TypeScript, bun test, Stryker |
+| `apps/api` | Central server: REST API, database, jobs. All business rules run here. | Bun, NestJS, Drizzle, PostgreSQL 16 |
 | `apps/web` | The shared interface. Shipped as the website, inside the desktop app, and inside the mobile app. | React, Vite, TanStack Query |
 | `apps/desktop` | Tauri 2 shell around `apps/web` for office PCs. Adds silent printing and devices only. | Rust, Tauri 2 |
 | `apps/mobile` (later) | Capacitor shell around `apps/web` for supervisors. | Capacitor |
@@ -29,7 +29,7 @@ places, it goes in `packages/core` and the server is the source of truth.
 1. Start from a requirement in the PRD. Write the failing test that states it.
 2. Write the least code that makes it pass.
 3. Refactor with the tests green.
-4. Run `pnpm test` and `pnpm typecheck` before every commit. CI runs both plus mutation
+4. Run `bun run test` and `bun run typecheck` before every commit. CI runs both plus mutation
    testing on `packages/core`.
 
 Never mark work done with failing or skipped tests. Never delete or weaken a test to
@@ -59,6 +59,21 @@ make it pass; if a test is wrong, say why in the pull request.
   generator (`apps/api/src/db/seed.ts`), which produces fictional workers.
 - Passport, civil ID and bank numbers are masked in the UI except for roles that need
   them.
+
+## Bun (runtime, package manager, test runner)
+
+- Use `bun install`, `bun run <script>`, `bunx`. Never npm, pnpm or yarn; never commit
+  another lockfile. `bun.lock` is the only lockfile.
+- The API runs on Bun in development, tests and production (`bun src/main.ts`,
+  `bun test`, `bun build --target=bun`).
+- postgres.js queries are lazy. In `bun:test`, never pass a query straight to
+  `expect(...).rejects`; wrap it: ``expect((async () => sql`...`)()).rejects``.
+  Passed directly, the test hangs forever and Bun's test timeout does not stop it.
+- `apps/api/tsconfig.json` must stay self-contained (no `extends`): Bun ignores
+  `experimentalDecorators` in an extended tsconfig, and NestJS then fails at startup.
+- Pin exact versions for anything tied to a downloaded binary (e.g. `@playwright/test`).
+- Web component tests and mutation testing use Vitest on purpose: jsdom component tests
+  and Stryker's proven runner. Don't move them to `bun test` without proving both work.
 
 ## Code conventions
 

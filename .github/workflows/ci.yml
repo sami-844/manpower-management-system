@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+env:
+  BUN_VERSION: 1.4.2
+
 jobs:
   test:
     name: Tests (core, API, web)
@@ -24,20 +27,23 @@ jobs:
       DATABASE_URL: postgres://mms:mms@localhost:5432/mms_test
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      # Vitest (web components) and Stryker (mutation testing) run on Node by design.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
       - name: Mutation testing (gate 80%)
-        run: pnpm test:mutation
-      - run: pnpm --filter @mms/web build
+        run: bun run test:mutation
+      - run: bun run --filter @mms/web build
+      - run: bun run --filter @mms/api build
 
   e2e:
-    name: End-to-end (Playwright)
+    name: End-to-end (Playwright, API on Bun)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -54,39 +60,48 @@ jobs:
       DATABASE_URL: postgres://mms:mms@localhost:5432/mms_dev
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @mms/web exec playwright install --with-deps chromium
-      - run: pnpm db:migrate && pnpm db:seed
-      - run: pnpm dev:api &
-      - run: npx wait-on http://localhost:3000/api/health
-      - run: pnpm --filter @mms/web test:e2e
+      - run: bun install --frozen-lockfile
+      - run: cd apps/web && bunx playwright install --with-deps chromium
+      - run: bun run db:migrate && bun run db:seed
+      - run: cd apps/api && bun src/main.ts &
+      - run: bunx wait-on http://localhost:3000/api/health
+      - run: bun run --filter @mms/web test:e2e
+
+  api-image:
+    name: API production image (Bun)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t workforce-api .
 
   desktop:
     name: Desktop app (Windows installer)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: |
             apps/desktop/print-spooler
             apps/desktop/src-tauri
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
       - name: Test the silent-print module on Windows
-        run: pnpm --filter @mms/desktop test:rust
+        run: bun run --filter @mms/desktop test:rust
       - name: Build the installer
-        run: pnpm --filter @mms/desktop build
+        run: bun run --filter @mms/desktop build
       - uses: actions/upload-artifact@v4
         with:
           name: workforce-windows-installer

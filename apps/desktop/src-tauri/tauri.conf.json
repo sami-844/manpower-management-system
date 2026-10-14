@@ -6,8 +6,8 @@
   "build": {
     "devUrl": "http://localhost:5173",
     "frontendDist": "../../web/dist",
-    "beforeDevCommand": "pnpm --filter @mms/web dev",
-    "beforeBuildCommand": "pnpm --filter @mms/web build"
+    "beforeDevCommand": "bun run --filter @mms/web dev",
+    "beforeBuildCommand": "bun run --filter @mms/web build"
   },
   "app": {
     "windows": [

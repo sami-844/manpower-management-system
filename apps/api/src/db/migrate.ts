@@ -15,7 +15,7 @@ export async function runMigrations(url: string): Promise<void> {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (import.meta.main) {
   const url = process.env.DATABASE_URL ?? "postgres://mms:mms@localhost:5432/mms_dev";
   runMigrations(url).then(
     () => console.log("Migrations applied"),

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { createTestApp, createWorker, type TestContext } from "./helpers";
 
 let ctx: TestContext;
@@ -38,8 +38,9 @@ describe("audit trail (Spec §6)", () => {
 
   it("cannot be edited or deleted, even directly in the database", async () => {
     await createWorker(ctx, {}, []);
-    await expect(ctx.db.sql`UPDATE audit_events SET actor = 'someone-else'`).rejects.toThrow(/append-only/);
-    await expect(ctx.db.sql`DELETE FROM audit_events`).rejects.toThrow(/append-only/);
+    // postgres.js queries are lazy: wrap them so they actually run (bun:test won't start them).
+    await expect((async () => ctx.db.sql`UPDATE audit_events SET actor = 'someone-else'`)()).rejects.toThrow(/append-only/);
+    await expect((async () => ctx.db.sql`DELETE FROM audit_events`)()).rejects.toThrow(/append-only/);
   });
 
   it("detects tampering if the chain is broken", async () => {
