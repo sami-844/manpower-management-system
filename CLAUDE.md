@@ -19,9 +19,22 @@ payroll (WPS via Bank Muscat), billing and a finance ledger.
 | `apps/api` | Central server: REST API, database, jobs. All business rules run here. | Bun, NestJS, Drizzle, PostgreSQL 16 |
 | `apps/web` | The shared interface. Shipped as the website, inside the desktop app, and inside the mobile app. | React, Vite, TanStack Query |
 | `apps/desktop` | Tauri 2 shell around `apps/web` for office PCs. Adds silent printing and devices only. | Rust, Tauri 2 |
-| `apps/mobile` (later) | Capacitor shell around `apps/web` for supervisors. | Capacitor |
+| `apps/mobile` (Version 2) | Capacitor shell around `apps/web` for supervisors, workers and the owner. | Capacitor |
 
-Rule: shells (desktop, mobile) never hold business rules. If logic is needed in two
+Rule: shells (desktop, mobile) never hold business rules.
+
+## Release scope
+
+- **Version 1 (go-live 8 Aug 2027):** office roles (HR/PRO, operations, payroll,
+  finance), the owner/GM and the system admin, on the desktop app and the web app
+  (phone-ready for the owner). Attendance comes from printed daily sheets entered in
+  the office (`attendance_events.source = 'office_entry'`), and clients sign emailed
+  timesheet packs.
+- **Version 2 (by 27 Jan 2028):** supervisor app, client portal and worker app.
+- Build the API, data model and permissions for all nine roles now, but do not issue
+  supervisor, client or worker accounts and do not start `apps/mobile` before Version 2
+  work begins. Version 2 adds front doors; it must not need changes to Version 1 tables
+  or endpoints. If logic is needed in two
 places, it goes in `packages/core` and the server is the source of truth.
 
 ## How we work: tests first, always
