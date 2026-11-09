@@ -23,6 +23,11 @@ const newSponsor = async (name = "Gulf Manpower LLC") => {
 };
 const check = (workerId: string) => ctx.api("ops.manager").post("/api/compliance/check").send({ workerId, ...period });
 const codes = (res: { body: { blockers: { code: string }[] } }) => res.body.blockers.map((b) => b.code);
+/** The worker's current sponsorship, verified by a second person (hr.lead; createWorker records as hr.officer). */
+const verifyCurrent = async (workerId: string, by = "hr.lead") => {
+  const history = await ctx.api().get(`/api/workers/${workerId}/sponsorships`);
+  return ctx.api(by).post(`/api/workers/${workerId}/sponsorships/${history.body.items[0].id}/verify-authorisation`);
+};
 
 describe("every worker has a sponsor and an engagement", () => {
   it("records a new worker as the company's own by default, shown on the list", async () => {
@@ -36,7 +41,8 @@ describe("every worker has a sponsor and an engagement", () => {
 
   it("counts workers per sponsor on one screen, unknown sponsors included", async () => {
     const s = await newSponsor("Counted Supply Co");
-    await createWorker(ctx, { fullName: "Worker A", engagement: { engagement: "supplied", sponsorId: s.id, authorisationRef: "MOL-2026-1" } });
+    const a = await createWorker(ctx, { fullName: "Worker A", engagement: { engagement: "supplied", sponsorId: s.id, authorisationRef: "MOL-2026-1" } });
+    expect((await verifyCurrent(a.id)).status).toBe(200);
     await createWorker(ctx, { fullName: "Worker B", engagement: { engagement: "supplied", sponsorId: s.id } });
     await createWorker(ctx, { fullName: "Worker C", engagement: { engagement: "free_visa" } });
     await createWorker(ctx, { fullName: "Worker D" });
@@ -88,7 +94,13 @@ describe("unauthorised engagements (A22): the owner's approval, behind one setti
     const s = await newSponsor();
     const ok = await createWorker(ctx, { fullName: "Authorised", engagement: { engagement: "supplied", sponsorId: s.id, authorisationRef: "MOL-2026-9" } });
     const not = await createWorker(ctx, { fullName: "No paper", engagement: { engagement: "supplied", sponsorId: s.id } });
+    // A typed reference is only a claim until a second person verifies it.
+    expect(codes(await check(ok.id))).toEqual(["UNAUTHORISED_ENGAGEMENT"]);
+    const self = await verifyCurrent(ok.id, "hr.officer");
+    expect(self.body.code).toBe("FOUR_EYES");
+    expect((await verifyCurrent(ok.id)).body).toMatchObject({ authorisationVerifiedBy: "hr.lead", isUnauthorised: false });
     expect((await check(ok.id)).body.eligible).toBe(true);
+    expect((await verifyCurrent(not.id)).body.code).toBe("NO_AUTHORISATION");
     expect(codes(await check(not.id))).toEqual(["UNAUTHORISED_ENGAGEMENT"]);
   });
 
@@ -159,6 +171,9 @@ describe("supply agreements: four eyes, decimal money, locked once approved", ()
     expect((await rate({ trade: "Mason", hourType: "normal", unit: "hour", rate: "1.300", validFrom: "2026-12-01" })).body.code).toBe("RATE_OVERLAPS");
 
     expect((await ctx.api("ops.manager").post(`/api/supply-agreements/${a.body.id}/approve`)).status).toBe(403);
+    // Whoever added a rate cannot approve either, even holding supply.approve.
+    await ctx.api("finance.officer").post(`/api/supply-agreements/${a.body.id}/rates`).send({ trade: "Welder", hourType: "night", unit: "hour", rate: "2.000", validFrom: "2026-11-01" });
+    expect((await ctx.api("finance.officer").post(`/api/supply-agreements/${a.body.id}/approve`)).body.code).toBe("FOUR_EYES");
     const approved = await ctx.api("owner.gm").post(`/api/supply-agreements/${a.body.id}/approve`);
     expect(approved.body).toMatchObject({ status: "approved", approvedBy: "owner.gm" });
     expect((await rate({ trade: "Welder", hourType: "normal", unit: "day", rate: "12.000", validFrom: "2026-11-01" })).body.code).toBe("AGREEMENT_LOCKED");

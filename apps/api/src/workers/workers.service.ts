@@ -109,7 +109,7 @@ export class WorkersService {
     return new Map(
       rows.map((r) => [
         r.s.workerId,
-        { engagement: r.s.engagement, sponsorId: r.s.sponsorId, sponsorName: r.sponsorName, isUnauthorised: isUnauthorised(r.s.engagement, r.s.authorisationRef) },
+        { engagement: r.s.engagement, sponsorId: r.s.sponsorId, sponsorName: r.sponsorName, isUnauthorised: isUnauthorised(r.s) },
       ]),
     );
   }

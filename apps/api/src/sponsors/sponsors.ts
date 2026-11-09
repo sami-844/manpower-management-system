@@ -21,9 +21,15 @@ const problem = (status: number, code: string, message: string) => new HttpExcep
 export const POLICY_KEY = "outsourcing.unauthorised";
 const OWN_PLACEHOLDER = "Own company (record the legal name)";
 
-/** A supplied or transferred row with no authorisation, or any free-visa row (PRD 4.18, A22). */
-export const isUnauthorised = (engagement: string, authorisationRef: string | null) =>
-  engagement === "free_visa" || (engagement !== "own" && !authorisationRef);
+/**
+ * A supplied or transferred row without a verified authorisation, or any free-visa row (PRD 4.18,
+ * A22). The reference alone is only a claim: it counts once someone other than its recorder has
+ * checked it, so no single person can make an outsourced worker "authorised".
+ */
+export const hasVerifiedAuthorisation = (r: { authorisationRef: string | null; authorisationVerifiedBy: string | null }) =>
+  r.authorisationRef !== null && r.authorisationVerifiedBy !== null;
+export const isUnauthorised = (r: { engagement: string; authorisationRef: string | null; authorisationVerifiedBy: string | null }) =>
+  r.engagement === "free_visa" || (r.engagement !== "own" && !hasVerifiedAuthorisation(r));
 
 export async function readPolicy(orm: Orm | Tx): Promise<UnauthorisedPolicy> {
   const [row] = await orm.select({ value: settings.value }).from(settings).where(eq(settings.key, POLICY_KEY));
@@ -127,7 +133,7 @@ export async function recordEngagement(
     before: later.map((r) => ({ id: r.id, engagement: r.engagement, sponsorId: r.sponsorId, validFrom: r.validFrom, validTo: r.validTo })),
     after: row,
   });
-  return { ...row!, isUnauthorised: isUnauthorised(row!.engagement, row!.authorisationRef) };
+  return { ...row!, isUnauthorised: isUnauthorised(row!) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -206,7 +212,7 @@ export class SponsorsService {
         .select({
           sponsorId: workerSponsorships.sponsorId,
           engagement: workerSponsorships.engagement,
-          unauthorised: sql<boolean>`${workerSponsorships.engagement} = 'free_visa' or (${workerSponsorships.engagement} <> 'own' and ${workerSponsorships.authorisationRef} is null)`,
+          unauthorised: sql<boolean>`${workerSponsorships.engagement} = 'free_visa' or (${workerSponsorships.engagement} <> 'own' and (${workerSponsorships.authorisationRef} is null or ${workerSponsorships.authorisationVerifiedBy} is null))`,
           n: sql<number>`count(*)::int`,
         })
         .from(workerSponsorships)
@@ -298,7 +304,29 @@ export class SponsorsService {
       .leftJoin(sponsors, eq(sponsors.id, workerSponsorships.sponsorId))
       .where(eq(workerSponsorships.workerId, workerId))
       .orderBy(desc(workerSponsorships.validFrom));
-    return { items: rows.map((r) => ({ ...r.s, sponsorName: r.sponsorName, isUnauthorised: isUnauthorised(r.s.engagement, r.s.authorisationRef) })) };
+    return { items: rows.map((r) => ({ ...r.s, sponsorName: r.sponsorName, isUnauthorised: isUnauthorised(r.s) })) };
+  }
+
+  /** The second person checks the authorisation reference against the Ministry record (four eyes). */
+  async verifyAuthorisation(workerId: string, sponsorshipId: string, actor: string) {
+    return this.db.orm.transaction(async (tx) => {
+      const [before] = await tx
+        .select()
+        .from(workerSponsorships)
+        .where(and(eq(workerSponsorships.id, sponsorshipId), eq(workerSponsorships.workerId, workerId)))
+        .for("update");
+      if (!before) throw problem(HttpStatus.NOT_FOUND, "SPONSORSHIP_NOT_FOUND", "No such sponsorship record.");
+      if (!before.authorisationRef) throw problem(HttpStatus.BAD_REQUEST, "NO_AUTHORISATION", "There is no authorisation reference to verify.");
+      if (before.authorisationVerifiedBy) throw problem(HttpStatus.CONFLICT, "ALREADY_VERIFIED", "This authorisation is already verified.");
+      if (before.createdBy === actor) throw problem(HttpStatus.FORBIDDEN, "FOUR_EYES", "Someone other than the person who recorded it must verify it.");
+      const [after] = await tx
+        .update(workerSponsorships)
+        .set({ authorisationVerifiedBy: actor, authorisationVerifiedAt: new Date(this.clock.now()) })
+        .where(eq(workerSponsorships.id, sponsorshipId))
+        .returning();
+      await this.audit.record(tx, { actor, action: "worker.authorisation_verify", subjectType: "worker", subjectId: workerId, before, after });
+      return { ...after!, isUnauthorised: isUnauthorised(after!) };
+    });
   }
 
   async recordEngagement(workerId: string, input: z.infer<typeof recordEngagementSchema>, actor: string) {
@@ -402,9 +430,12 @@ export class SponsorsService {
       const [a] = await tx.select().from(supplyAgreements).where(eq(supplyAgreements.id, id)).for("update");
       if (!a) throw problem(HttpStatus.NOT_FOUND, "AGREEMENT_NOT_FOUND", "No such supply agreement.");
       if (a.status !== "draft") throw problem(HttpStatus.CONFLICT, "ALREADY_APPROVED", "This agreement is already approved.");
-      if (a.createdBy === actor) throw problem(HttpStatus.FORBIDDEN, "FOUR_EYES", "Someone other than the person who recorded it must approve it.");
-      const [{ n }] = (await tx.select({ n: sql<number>`count(*)::int` }).from(supplyRateLines).where(eq(supplyRateLines.supplyAgreementId, id))) as [{ n: number }];
-      if (n === 0) throw problem(HttpStatus.BAD_REQUEST, "NO_RATES", "Add at least one rate before approving.");
+      const rates = await tx.select({ createdBy: supplyRateLines.createdBy }).from(supplyRateLines).where(eq(supplyRateLines.supplyAgreementId, id));
+      // Nobody approves terms they wrote: neither the agreement nor any of its rates.
+      if (a.createdBy === actor || rates.some((r) => r.createdBy === actor)) {
+        throw problem(HttpStatus.FORBIDDEN, "FOUR_EYES", "Someone who recorded neither the agreement nor its rates must approve it.");
+      }
+      if (rates.length === 0) throw problem(HttpStatus.BAD_REQUEST, "NO_RATES", "Add at least one rate before approving.");
       const now = new Date(this.clock.now());
       const [after] = await tx
         .update(supplyAgreements)
@@ -476,6 +507,13 @@ export class SponsorsController {
   @Post("workers/:id/sponsorships")
   recordEngagement(@Param("id") id: string, @Body() body: unknown, @Req() req: AuthedRequest) {
     return this.sponsors.recordEngagement(parseId(id), parse(recordEngagementSchema, body), req.auth!.username);
+  }
+
+  @RequirePermission("documents.verify")
+  @Post("workers/:id/sponsorships/:sid/verify-authorisation")
+  @HttpCode(200)
+  verifyAuthorisation(@Param("id") id: string, @Param("sid") sid: string, @Req() req: AuthedRequest) {
+    return this.sponsors.verifyAuthorisation(parseId(id), parseId(sid), req.auth!.username);
   }
 
   @RequirePermission("sponsors.read")

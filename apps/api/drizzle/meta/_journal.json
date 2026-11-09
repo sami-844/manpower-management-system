@@ -64,6 +64,13 @@
       "when": 1794252394028,
       "tag": "0008_sponsors_rules_and_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794252828984,
+      "tag": "0009_sponsorship_authorisation_verified",
+      "breakpoints": true
     }
   ]
 }

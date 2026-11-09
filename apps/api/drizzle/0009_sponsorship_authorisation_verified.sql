@@ -1,0 +1,3 @@
+ALTER TABLE "worker_sponsorships" ADD COLUMN "authorisation_verified_by" text;--> statement-breakpoint
+ALTER TABLE "worker_sponsorships" ADD COLUMN "authorisation_verified_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "worker_sponsorships" ADD CONSTRAINT "worker_sponsorships_verified_ck" CHECK ("worker_sponsorships"."authorisation_verified_by" is null or ("worker_sponsorships"."authorisation_ref" is not null and "worker_sponsorships"."authorisation_verified_at" is not null and "worker_sponsorships"."authorisation_verified_by" <> "worker_sponsorships"."created_by"));

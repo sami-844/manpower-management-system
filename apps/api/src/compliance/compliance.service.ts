@@ -17,7 +17,7 @@ import { calendarDate, uuid } from "../common/validation";
 import { DB, type Database } from "../db/client";
 import type { Principal } from "../auth/auth.service";
 import { complianceOverrides, leavePeriods, sites, workerDocuments, workers, workerSponsorships } from "../db/schema";
-import { readPolicy } from "../sponsors/sponsors";
+import { hasVerifiedAuthorisation, readPolicy } from "../sponsors/sponsors";
 import { WorkersService } from "../workers/workers.service";
 
 const BLOCKER_CODES = [
@@ -76,7 +76,7 @@ export class ComplianceService {
         engagement: e.engagement as Engagement,
         from: e.validFrom,
         to: e.validTo,
-        hasAuthorisation: e.authorisationRef !== null,
+        hasAuthorisation: hasVerifiedAuthorisation(e),
       })),
       unauthorisedPolicy: policy,
       overrides: overrides.map(

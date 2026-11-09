@@ -389,6 +389,9 @@ export const workerSponsorships = pgTable(
     engagement: text("engagement").notNull(),
     supplyAgreementId: uuid("supply_agreement_id").references(() => supplyAgreements.id, { onDelete: "restrict" }),
     authorisationRef: text("authorisation_ref"),
+    // A typed reference is a claim; it counts only once a second person has checked it (four eyes).
+    authorisationVerifiedBy: text("authorisation_verified_by"),
+    authorisationVerifiedAt: timestamp("authorisation_verified_at", { withTimezone: true }),
     authorisationFileId: uuid("authorisation_file_id"),
     consentFileId: uuid("consent_file_id"),
     validFrom: date("valid_from", { mode: "string" }).notNull(),
@@ -403,6 +406,10 @@ export const workerSponsorships = pgTable(
     check("worker_sponsorships_sponsor_ck", sql`${t.sponsorId} is not null or ${t.engagement} = 'free_visa'`),
     check("worker_sponsorships_own_ck", sql`${t.engagement} <> 'own' or (${t.supplyAgreementId} is null and ${t.authorisationRef} is null)`),
     check("worker_sponsorships_dates_ck", sql`${t.validTo} is null or ${t.validTo} >= ${t.validFrom}`),
+    check(
+      "worker_sponsorships_verified_ck",
+      sql`${t.authorisationVerifiedBy} is null or (${t.authorisationRef} is not null and ${t.authorisationVerifiedAt} is not null and ${t.authorisationVerifiedBy} <> ${t.createdBy})`,
+    ),
   ],
 );
 
