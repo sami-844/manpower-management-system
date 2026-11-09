@@ -84,7 +84,7 @@ Already done: a first working slice (worker files, the deployment check, renewal
 A production platform that is safe to hold real personal data. No real worker data enters any system before G1.
 
 - **AWS, built from code (Terraform):** separate production, staging and backup accounts. The Bun API runs on ECS Fargate, with RDS PostgreSQL (Multi-AZ), S3, KMS, WAF and Secrets Manager, all in the PDPL-approved region.
-- **Sign-in and roles:** Amazon Cognito with 2FA for office staff and the owner. All nine PRD roles and their site and client scopes are built and tested, but only the six Version 1 roles (owner, operations, HR/PRO, payroll, finance, admin) get accounts; supervisor, client and worker accounts open in Version 2.
+- **Sign-in and roles:** the API's own sign-in, with mandatory authenticator-app 2FA for office staff and the owner (same design as the company's warehouse and hospital systems). All nine PRD roles and their site and client scopes are built and tested, but only the six Version 1 roles (owner, operations, HR/PRO, payroll, finance, admin) get accounts; supervisor, client and worker accounts open in Version 2.
 - **Data protection inside the database:** row-level security by entity, site and client; masking of passport, ID and bank numbers; encryption at rest.
 - **Recovery:** point-in-time recovery and backups to a locked account. The first full restore test happens in this phase.
 - **Monitoring:** logs, metrics, alerts, error tracking (Sentry) and uptime checks.
@@ -102,6 +102,7 @@ Every worker's file and papers live in the system, correct, and policed by the c
 - **Worker master:** full profile, family and next of kin, bank account (changes need two people), trades and skill levels, status history.
 - **Document vault:** scans with version history, passport reading by OCR, duplicate detection.
 - **Government work:** transaction tracker, Omanisation ratio against requirement, absconding workflow, override approvals.
+- **Sponsors:** the sponsor register, and each worker's sponsor and engagement (own, supplied, transferred) with the Ministry authorisation or registered transfer behind it; a worker without one, or on a free visa, shows as Unauthorised and needs the owner's approval before rostering (PRD 4.18).
 - **Renewal alerts** at 90, 60, 30 and 7 days, by WhatsApp, SMS and email to HR, the supervisor and the worker.
 - **Import tool:** a validation report on every row. The cleaned worker files go into staging, and HR fixes every rejected row.
 
@@ -119,6 +120,7 @@ Every client, site and contract price is in the system, so hours can later be bi
 - Contracts and rate cards by trade and hour type (normal, overtime, rest day, holiday, night), minimum hours, inclusions and price-escalation dates, all versioned by date.
 - Manpower requests from clients, entered by the office now and through the client portal in Version 2.
 - A margin preview on every quote: billing rate against the worker's full cost.
+- Supply agreements with outside sponsors: the rates the company pays by trade and hour type, inclusions and minimum days, versioned by date.
 - Import current clients and contracts from Excel. The accountant checks every rate against the signed contracts.
 
 Ends with: the operations manager and accountant accept the module on staging.
@@ -180,7 +182,7 @@ Every approved hour is invoiced from the same locked timesheet, and the company'
 - **Collecting:** receivables ageing, automatic reminders, and credit-limit warnings to operations before more workers go to a client.
 - **Leakage:** a daily unbilled-hours report and a check that every approved hour has been invoiced.
 - **Ledger:** chart of accounts and cost centres per client and site. Journals are posted automatically from payroll and billing.
-- **Supplier bills:** camp rent, fuel, bus maintenance, visas and agency fees.
+- **Supplier bills:** camp rent, fuel, bus maintenance, visas and agency fees, and sponsors' labour bills matched line by line to locked hours times the agreed rates.
 - **Bank:** reconciliation against imported statements.
 - **Month-end:** close with trial balance, profit and loss, balance sheet and VAT workings; a closed period is locked.
 - **Golden billing suite:** signed cases for every contract type.
@@ -277,7 +279,7 @@ Eight gates decide whether work moves on. Each has measurable criteria, and each
 | Gate | Date | Passes when | Signed by |
 |---|---|---|---|
 | G0 Discovery signed | 10 Dec 2026 | Requirements and rule tables signed by module owners, labour lawyer and tax adviser; data audit accepted with clean-up owners named; all three platform proofs passed; PDPL transfer assessment done; plan and budget approved | Owner |
-| G1 Safe for real data | 7 Jan 2027 | Cognito sign-in and roles live; row-level security and masking tested; encrypted backups with one successful full restore; staging and production built from Terraform; foundation security review passed | Owner and IT contact |
+| G1 Safe for real data | 7 Jan 2027 | Sign-in with 2FA and roles live; row-level security and masking tested; encrypted backups with one successful full restore; staging and production built from Terraform; foundation security review passed | Owner and IT contact |
 | G2 Time capture proven | 22 Apr 2027 | At both pilot sites for 4 weeks: every rostered worker-day has a timesheet line backed by a filed sheet scan; a 30-person sheet entered in under 2 minutes; entered hours match the current method, with every difference explained | Operations manager |
 | G3 Payroll proven | 13 May 2027 | Golden payroll suite 100% exact to the baisa; Bank Muscat accepts a test WPS file; settlement calculator, Fund contributions and savings-system rules signed | Payroll officer, accountant and labour lawyer |
 | G4 Acceptance | 24 Jun 2027 | Every module accepted by its owner; task time budgets met; no high or critical penetration-test finding open; load and recovery tests passed; staff trained | Module owners and owner |
@@ -313,6 +315,7 @@ The plan already avoids Ramadan and the Eids for pilots, acceptance and go-live;
 | A module owner is unavailable at a gate | That gate waits | A named deputy per module, with authority to sign, agreed at G0 |
 | New requests arrive mid-build | Launch slips | Non-legal changes go to Version 2 or Phase 12; legal changes go into the current phase |
 | Golden cases take longer than planned | G3 slips | Started in Phase 0; progress tracked weekly |
+| Sponsors and outsourced workers (PRD 4.18) arrive in Discovery | Phases 2, 3 and 7 grow | Raised before G0, so it is signed with the other requirements rather than added mid-build; its legal rules go to the labour lawyer with the rest |
 
 ## Sources
 
@@ -320,4 +323,6 @@ The plan already avoids Ramadan and the Eids for pilots, acceptance and go-live;
 - [Bondoni: Key changes to end-of-service benefits for expatriates](https://bondoni-me.com/2026/06/03/client-alert-key-changes-to-end-of-service-benefits-for-expatriates/): scheduled for 19 July 2027; 9% of basic wage
 - [Muscat Daily: Mandatory savings scheme among new social protection reforms](https://www.muscatdaily.com/2026/03/11/mandatory-savings-scheme-for-expats-among-new-social-protection-reforms/): work-injury insurance planned for 2028
 - [KPMG: Updates to the Wage Protection System in Oman](https://kpmg.com/om/en/insights/2025/01/ministry-of-labour-updates-to-the-wage-protection-system-in-oman.html): wages transferred within 3 days of the period end
+- [Labour Law 53/2023 (decree.om)](https://decree.om/2023/rd20230053/): article 29 (working for someone other than the sponsor), article 87 (wages paid only by bank transfer), articles 143 and 147 (penalties)
+- [Ministerial Decision 730/2024 (qanoon.om)](https://qanoon.om/p/2024/mol20240730/): temporary transfer of workers between private establishments, in force since 16 December 2024
 - [Khaleej Times: Likely dates of Ramadan and Eids in 2027](https://www.khaleejtimes.com/uae/ramadan-eid-al-fitr-eid-al-adha-2027-likely-dates): astronomical estimates; actual dates depend on moon sighting

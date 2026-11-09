@@ -11,7 +11,7 @@ The team works test-first with Claude Code as the main coding assistant, followi
 | Package | Today (commit f8115c6) | At go-live |
 |---|---|---|
 | `packages/core` | Compliance check, renewal tiers, money, dates, summary; 94 tests | Plus pay engine (gratuity, overtime, deductions, savings system, SPF), billing calculator, rule versions; every rule with signed golden cases |
-| `apps/api` | NestJS on Bun: workers, documents, sites, overrides, leave, audit chain; 29 tests | All modules in the API surface, Cognito auth, RLS, jobs, outbox, OpenAPI 3.1 |
+| `apps/api` | NestJS on Bun: workers, documents, sites, overrides, leave, audit chain; 29 tests | All modules in the API surface, own sign-in with 2FA, RLS, jobs, outbox, OpenAPI 3.1 |
 | `apps/web` | React slice with custom CSS; 17 unit tests and Playwright e2e | shadcn/ui app shell, every office screen including daily sheets and attendance entry, owner views on desktop and phone; client portal in Version 2 |
 | `apps/desktop` | Tauri shell and print-spooler crate; 10 Rust tests | Signed Windows installer, silent bulk printing, auto-update, offline read cache |
 | `apps/mobile` | Not started | Not in Version 1. Version 2: Capacitor app (supervisor, worker and owner modes; Android first, iOS ready) with offline attendance |
@@ -25,12 +25,12 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 | Sprint | Dates | Goal | Demo |
 |---|---|---|---|
 | S1 | 1–12 Nov 2026 | Proofs: silent printing on office printers, Bank Muscat WPS sample file, AWS landing zone | Desktop prints 50 payslips with no dialog |
-| S2 | 15–26 Nov | Foundation: `packages/ui` with shadcn and tokens; first slice migrated; Cognito sign-in | Worker list in the new shell, signed in |
+| S2 | 15–26 Nov | Foundation: `packages/ui` with shadcn and tokens; first slice migrated; sign-in with 2FA | Worker list in the new shell, signed in |
 | S3 | 29 Nov–10 Dec | Roles, RLS, rules engine, audit on every write; G0 sign-off | Permission matrix enforced end to end |
-| S4 | 13–24 Dec | Worker file complete: contracts, bank accounts, document capture | HR creates a full worker file in under 5 minutes |
+| S4 | 13–24 Dec | Worker file complete: contracts, bank accounts, document capture; sponsor register and each worker's sponsor and engagement | HR creates a full worker file in under 5 minutes |
 | S5 | 27 Dec 2026–7 Jan 2027 | Renewals board, government transactions, CI/CD to staging; G1 | Renewal tasks auto-created and tracked |
-| S6 | 10–21 Jan | Clients, sites, contracts, rate cards | Rate card with OT and Friday rates |
-| S7 | 24 Jan–4 Feb | Absconding process, overrides with approval, workforce reports | Blocked worker cannot be assigned |
+| S6 | 10–21 Jan | Clients, sites, contracts, rate cards; supply agreements with outside sponsors | Rate card with OT and Friday rates |
+| S7 | 24 Jan–4 Feb | Absconding process, overrides with approval, authorisation and transfer checks for outsourced workers, workforce reports | Blocked worker cannot be assigned; an outsourced worker without an authorisation cannot either |
 | S8 | 7–18 Feb | Requests and matching | Request for 20 masons matched with blockers shown |
 | S9 | 21 Feb–4 Mar | Assignments, roster, bench; daily sheet generation and printing | Roster by site for a month |
 | S10 | 7–18 Mar | Attendance entry grid and QR scan filing; pay engine core | 30-person sheet entered in under 2 minutes, photo filed by its QR code |
@@ -38,7 +38,7 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 | S12 | 4–15 Apr | Leave, sick leave with SPF, savings system 9% | Golden payroll cases pass |
 | S13 | 18–29 Apr | Payroll runs, approvals, payslips bulk print; G2 | 700 payslips printed silently |
 | S14 | 2–13 May | WPS file, rejection loop, settlements and gratuity; G3 | Bank Muscat test portal accepts file |
-| S15 | 16–27 May | Invoices, credit notes, ledger, VAT | Month invoiced from locked timesheets |
+| S15 | 16–27 May | Invoices, credit notes, ledger, VAT; sponsors' labour bills matched to locked hours | Month invoiced from locked timesheets; a sponsor's bill matched line by line |
 | S16 | 30 May–10 Jun | Receipts, bank reconciliation, period close; owner dashboard | Owner sees cash, margin, compliance on phone |
 | S17 | 13–24 Jun | Owner phone web app and approvals by link, migration dress rehearsal 1; G4 | Owner approves a payroll from a WhatsApp link on a phone |
 | S18 | 27 Jun–8 Jul | Parallel run month 1, performance and security tests | New and old payroll differ by 0.000 OMR |
@@ -67,7 +67,7 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 
 **S1 Proofs (now running).** Tauri silent print to the office's actual printers from a queue of PDFs; record printer models and driver versions. Generate a WPS SIF file from fake data and validate it with Bank Muscat. Terraform the AWS accounts (prod, staging, dev, audit), SSO and guardrails in the chosen PDPL-approved region. Exit: three written proof reports.
 
-**S2 Foundation UI.** Create `packages/ui`; run `shadcn init` with Tailwind v4 and `rtl: true`; add tokens from the Design Brief; build the app shell (sidebar, top bar, command palette). Replace the slice's custom CSS with shadcn components (see the next section). Cognito user pool with MFA for office roles. Exit: all 17 web tests and e2e pass on the new UI.
+**S2 Foundation UI.** Create `packages/ui`; run `shadcn init` with Tailwind v4 and `rtl: true`; add tokens from the Design Brief; build the app shell (sidebar, top bar, command palette). Replace the slice's custom CSS with shadcn components (see the next section). Sign-in for office roles: passwords, authenticator 2FA, rotating sessions. Exit: all 17 web tests and e2e pass on the new UI.
 
 **S3 Access and rules.** Role and permission tables, RLS policies, session variables per request, rule versions with effective dates, audit interceptor on every write. Exit: a test proves each role sees only its rows.
 
@@ -118,7 +118,7 @@ Rules: keep all `data-testid` values so e2e tests stay valid; migrate one screen
 
 ## Data migration
 
-1. **Inventory (S1–S3).** List every current source: spreadsheets, the payroll file, bank records, passports and visas on paper.
+1. **Inventory (S1–S3).** List every current source: spreadsheets, the payroll file, bank records, passports and visas on paper, and every outside sponsor whose workers the company uses, with the authorisation behind each worker.
 2. **Map (S4–S7).** Field-by-field mapping to the Backend Schema, with an owner for every field and rules for blanks and conflicts.
 3. **Load scripts (S8–S14).** Idempotent Bun scripts that stage, validate and load; each rejected row goes to a report, never silently dropped.
 4. **Rehearsal 1 (S17).** Full load into staging; HR checks 50 random worker files; finance checks opening balances, loans and leave.

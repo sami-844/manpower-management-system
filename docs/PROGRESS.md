@@ -8,7 +8,7 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 (4) — Public GitHub repository (A19) and a one-click Cloudflare Workers deploy of the client demo (A20); demo merged to `main`.
+**Last session:** 2026-11-09 (5) — Specification extended for sponsors and outsourced workers (PRD 4.18), with Oman law researched; no code. D13–D16 raised.
 **Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 45 passed · e2e 6/6 · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
 
 ## How a step runs
@@ -56,6 +56,7 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - S1 · Silent-print proof — blocked on **D7** (office printer models and access to them). Ask: company IT contact, 2026-11-09.
 - S1 · WPS sample file — blocked on **D8** (Bank Muscat WPS specification and test channel). Ask: finance lead with Bank Muscat, 2026-11-09.
 - G0 — needs **D1–D4** answered by the owner.
+- Sponsors and outsourced workers (PRD 4.18; S4, S6, S7, S15) — blocked on **D13** (Version 1 or later; owner), **D14** (who sponsors today's workers; owner with HR/PRO), **D15** (lawful routes; labour lawyer) and **D16** (supply terms and VAT; owner, finance, tax adviser). Raised 2026-11-09. D15 (1) and (4) may also touch assignments and the cash list for the company's own workers.
 
 ## Notes
 
@@ -72,6 +73,15 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 ---
 
 ## Session log (newest first)
+
+**2026-11-09 (5) — Sponsors and outsourced workers, specification only.**
+
+- **Asked by Sami (for the client, after the demo):** track every worker's sponsor, the company included, and the workers taken from other manpower companies or "free visa" workers when the company's own are not enough; research how they are paid; document it in the existing documents' format; plan and report, no code.
+- **Researched:** Labour Law 53/2023 articles 29, 87, 143 and 147 and Ministerial Decision 730/2024, read in the text (decree.om, qanoon.om; unofficial Gazette reproductions), plus news and law-firm sources. Using another employer's worker is lawful only with Ministry authorisation (art. 29) or a registered temporary transfer (730/2024: 6 months a year at most, receiver pays through its own WPS). "Free visa" working is an offence: OMR 1,000–2,000 per worker, prison, a 2-year recruitment ban, deportation.
+- **Changed:** the live shared document and `docs/spec/` together (and `01-Documents/Markdown` with its `MANIFEST.sha256` lines): PRD 4.18 (new module), working assumptions, a goal, section 6 (three legal rows), a task budget, two risks, two owner decisions; Technical Spec entities, compliance, payroll and billing engines, four-eyes; TRD TR-ENG-12 to 14 and TR-SEC-06; App Flow S-42 Sponsors, S-43 Supply agreements and the "outsourced worker to site" flow; Backend Schema `sponsors`, `worker_sponsorships`, `supply_agreements`, `supply_rate_lines`, `supplier_bill_lines` and `supplier_bills.kind`; Delivery Phases 2, 3 and 7, a risk and sources; Implementation Plan S4, S6, S7, S15 and the migration inventory; Design Brief engagement tag. DECISIONS D13–D16.
+- **Not changed:** the PDF and Word copies in `01-Documents` and the diagrams (entity map, navigation map) are now behind the Markdown; the demo has no sponsor screens.
+- **For Sami:** take D13 and D14 to the owner and D15 to the labour lawyer; the "free visa" finding needs saying to the owner plainly.
+- **Next:** unchanged (S1 proofs, S2); 4.18 is built only after D13–D15 are answered.
 
 **2026-11-09 (4) — GitHub and the hosted demo.**
 

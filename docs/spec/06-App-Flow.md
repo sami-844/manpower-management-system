@@ -23,15 +23,15 @@ Every front door is the same React app; the sign-in role decides which sections 
 
 ## Screen inventory
 
-Forty-one screens in Version 1 (S-01 to S-41) and four more in Version 2 (M-01, M-02, C-01, W-01). IDs (S-xx) are used in the Implementation Plan and in tests.
+Forty-three screens in Version 1 (S-01 to S-43) and four more in Version 2 (M-01, M-02, C-01, W-01). IDs (S-xx) are used in the Implementation Plan and in tests.
 
 | ID | Screen | Area | Main users | Front door | Purpose | Phase |
 |---|---|---|---|---|---|---|
-| S-01 | Sign in | Shell | Everyone | All | Sign in with two-factor (phone code for supervisors and workers in Version 2) | 1 |
+| S-01 | Sign in | Shell | Everyone | All | Sign in with username, password and authenticator code; the first sign-in replaces the temporary password and sets up the authenticator (phone code for supervisors and workers in Version 2) | 1 |
 | S-02 | Today | Shell | Office roles | Desktop | The user's work queue: tasks, approvals, alerts | 2 |
 | S-03 | Global search | Shell | Office roles | Desktop | Find any worker, client, invoice or document (Ctrl+K) | 2 |
 | S-04 | Notifications | Shell | Everyone | All | Alerts and messages, with read state | 2 |
-| S-05 | Workers list | Workforce | HR/PRO, operations | Desktop | Search and filter by paper status, trade, site | 2 |
+| S-05 | Workers list | Workforce | HR/PRO, operations | Desktop | Search and filter by paper status, trade, site, sponsor and engagement | 2 |
 | S-06 | Worker file | Workforce | HR/PRO, operations | Desktop | Profile, documents, assignments, pay, leave, history | 2 |
 | S-07 | New worker | Workforce | HR/PRO | Desktop | Create a worker, with passport reading by OCR | 2 |
 | S-08 | Document upload | Workforce | HR/PRO | Desktop | Drag-and-drop scans, check details, verify | 2 |
@@ -57,17 +57,19 @@ Forty-one screens in Version 1 (S-01 to S-41) and four more in Version 2 (M-01, 
 | S-28 | Invoices | Billing | Finance | Desktop | Draft, issued, disputed, paid | 7 |
 | S-29 | Receivables | Billing | Finance | Desktop | Ageing, reminders, credit warnings | 7 |
 | S-30 | Ledger and close | Finance | Accountant | Desktop | Journals, bank reconciliation, month-end close | 7 |
-| S-31 | Supplier bills | Finance | Accountant | Desktop | Camp rent, fuel, visas, agency fees | 7 |
+| S-31 | Supplier bills | Finance | Accountant | Desktop | Camp rent, fuel, visas, agency fees; sponsors' labour bills matched to locked hours | 7 |
 | S-32 | Owner dashboard | Insight | Owner | Phone, web | Health of the business; tap any number for names | 8 |
 | S-33 | Approvals inbox | Insight | Owner, managers | Phone, desktop | Everything waiting for this person's approval | 8 |
 | S-34 | Reports | Insight | Managers | Desktop | Standard reports, saved views, scheduled delivery | 8 |
 | S-35 | Printers | Desktop | Office roles | Desktop only | Printer per job type, test page | 2 |
-| S-36 | Admin: users and roles | Admin | System admin | Desktop | Accounts, roles, site and client scope | 1 |
+| S-36 | Admin: users and roles | Admin | System admin | Desktop | Accounts, roles, site and client scope; temporary passwords, unlock, sign out everywhere | 1 |
 | S-37 | Admin: rule tables | Admin | System admin | Desktop | Dated legal and pay rules, with sign-off | 6 |
 | S-38 | Admin: audit and health | Admin | System admin | Desktop | Audit search, chain check, integration health | 1 |
 | S-39 | Daily sheets | Time | Operations | Desktop | Print or send tomorrow's pre-filled sheet for every site | 5 |
 | S-40 | Attendance entry | Time | Operations timekeeper | Desktop | Enter a sheet's exceptions beside its scan; missing sheets listed | 5 |
 | S-41 | Client timesheet packs | Time | Operations | Desktop | Email packs to clients, record signed approvals, chase late ones | 5 |
+| S-42 | Sponsors | Workforce | HR/PRO, operations, owner | Desktop, phone | Every sponsor with its documents, authorisations and how many deployed workers it holds | 2 |
+| S-43 | Supply agreements | Commercial | Operations, finance | Desktop | Rates the company pays each outside sponsor, inclusions and versions | 3 |
 | M-01 | Crew today | Supervisor app | Supervisors | Phone | Whole-crew attendance in one screen, offline | V2 (11) |
 | M-02 | Requests and incidents | Supervisor app | Supervisors | Phone | Leave, advances, incidents with photos | V2 (11) |
 | C-01 | Client portal | Portal | Client contacts | Web | Approve timesheets, see workers, download invoices, place requests | V2 (11) |
@@ -101,6 +103,19 @@ Operations fill a request from eligible workers in minutes; the system refuses a
 6. **Close.** The request shows as filled. Any shortfall stays open, and the client sees the filled count.
 
 When it goes wrong: if no eligible worker exists, operations see why (trade, papers, availability), and can raise a recruitment need (Phase 11) or offer the client a later start date.
+
+## Flow: outsourced worker to site
+
+A worker sponsored by another establishment reaches a site on a recorded basis for every day they work: an authorisation, a registered transfer, or the owner's approval of an unauthorised one.
+
+1. **Sponsor on file.** HR/PRO add the sponsor to the register (S-42) with its CR and Ministry of Labour establishment number, and verify its documents.
+2. **Agreement.** Operations record the supply agreement (S-43): rates the company pays by trade and hour type, inclusions, minimum days and payment terms. A second person approves it.
+3. **Worker added.** HR/PRO create the worker (S-07) with the sponsor and the engagement (supplied, transferred or free visa), and upload the worker's papers as for anyone else, plus the Ministry authorisation or registered transfer with its dates (and the worker's consent for a transfer). A free-visa worker has none to upload.
+4. **Check.** The compliance engine checks the papers and the authorisation for the dates, and the transfer limits for a transferred worker. A worker with no authorisation, and every free-visa worker, shows as Unauthorised and needs the owner's approval (S-11) before rostering.
+5. **Deploy.** The worker is matched and rostered like an own worker (S-16, S-17), and is marked Supplied, Transferred or Free visa on the roster and the daily sheet.
+6. **Month end.** The same locked hours bill the client. A supplied worker's hours are matched against the sponsor's invoice (S-31); a transferred worker is paid in the company's payroll and WPS; a free-visa worker is paid as their record says, from a cash pay list with a signed receipt or through the payee's invoice.
+
+When it goes wrong: an authorisation that ends or a transfer that reaches its limit blocks the worker from that date, like an expired paper; only the owner can approve an override, and only while the company setting allows it. A sponsor's invoice that differs from locked hours times agreed rates is held, with each difference listed, until finance decides.
 
 ## Flow: daily attendance to locked timesheet
 

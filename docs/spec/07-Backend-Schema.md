@@ -1,6 +1,6 @@
 # Backend Schema
 
-The database holds about 80 tables in eight domains, all in one PostgreSQL 16 database. Three tables anchor everything: the worker, the client contract and the locked timesheet line. Every amount on a payslip or invoice traces back to them. Tables marked **built** already exist in the first slice (migrations 0000–0002).
+The database holds about 85 tables in eight domains, all in one PostgreSQL 16 database. Three tables anchor everything: the worker, the client contract and the locked timesheet line. Every amount on a payslip or invoice traces back to them. Tables marked **built** already exist in the first slice (migrations 0000–0002).
 
 ### Conventions every table follows
 
@@ -31,7 +31,10 @@ A worker is placed on a site through an **assignment**, which links the worker t
 | Table | Key columns | Rules |
 |---|---|---|
 | `entities` | `id` (e.g. OM-01), `legal_name`, `cr_number`, `country`, `currency`, `week_start`, `weekend_days` | One row per legal company; seeded with the Oman entity |
-| `users` | `id`, `cognito_sub`, `display_name`, `email`, `phone`, `status`, `last_sign_in_at` | No passwords stored; identity comes from Cognito |
+| `users` | `id`, `username`, `display_name`, `email NULL`, `password_hash`, `must_change_password`, `password_changed_at`, `status` (active, disabled), `failed_sign_ins`, `locked_until NULL`, `totp_secret_sealed NULL`, `totp_pending_sealed NULL`, `totp_last_step NULL`, `last_sign_in_at` | Username unique ignoring case; Argon2id hash; TOTP secrets sealed with AES-256-GCM under their own key; a code is accepted once (`totp_last_step`); a password or hash is never logged or returned |
+| `user_sessions` | `id` (the session id in every access token), `user_id`, `refresh_hash`, `previous_refresh_hash NULL`, `previous_valid_until NULL`, `created_at`, `last_seen_at`, `expires_at`, `revoked_at NULL`, `revoke_reason NULL`, `ip`, `user_agent` | Refresh tokens stored only as SHA-256; every refresh rotates them, the previous one works for 30 seconds, an older one revokes the session; the server ends a session after 30 minutes idle or 12 hours |
+| `login_attempts` | `id bigserial`, `username`, `user_id NULL`, `ip`, `succeeded`, `reason`, `at` | Every attempt, including unknown usernames; feeds the per-IP limit |
+| `password_history` | `user_id`, `password_hash`, `created_at` | The last 5 passwords cannot be reused |
 | `roles` | `key` (owner, ops_manager, hr_pro, payroll, finance, supervisor, client, admin, worker), `name` | The nine PRD roles. Version 1 issues accounts for six; supervisor, client and worker accounts open in Version 2 |
 | `permissions` | `key` (e.g. `payroll.release`, `pii.view`), `description` | Declared in code and synced by migration |
 | `role_permissions` | `role_key`, `permission_key` | Default deny |
@@ -58,6 +61,8 @@ A worker is placed on a site through an **assignment**, which links the worker t
 | `document_types` | `key`, `label`, `mandatory`, `required_for_trades text[]`, `alert_tiers int[]` | Reference data, replacing the code list over time |
 | `employment_contracts` | `id`, `worker_id`, `basic_wage`, `allowances jsonb`, `hours_per_week`, `leave_days`, `ticket_entitlement`, `valid_from`, `valid_to`, `file_id` | A new version for every pay change; WPS checks paid wage against this |
 | `worker_bank_accounts` | `id`, `worker_id`, `bank`, `iban` (encrypted), `status` (pending, verified), `requested_by`, `approved_by`, `valid_from` | Requester and approver must differ |
+| `sponsors` | `id`, `kind` (own, external), `legal_name`, `cr_number`, `mol_establishment_no`, `supplier_id NULL`, `status` | One `own` row per entity, created with it; an external sponsor the company pays links to `suppliers`; its CR and licence are documents with expiry dates |
+| `worker_sponsorships` | `id`, `worker_id`, `sponsor_id NULL`, `engagement` (own, supplied, transferred, free_visa), `supply_agreement_id NULL`, `authorisation_ref NULL`, `authorisation_file_id NULL`, `consent_file_id NULL`, `valid_from`, `valid_to` | No overlaps per worker (exclusion constraint); `own` only with an own sponsor; `sponsor_id` may be unknown only for `free_visa`; a supplied or transferred row without an authorisation, and every `free_visa` row, raises the Unauthorised blocker in `checkEligibility` |
 | `worker_family` | `worker_id`, `name`, `relation`, `phone`, `is_emergency_contact` |  |
 | `worker_skills` | `worker_id`, `trade`, `level` (1–5), `certified_until` | Feeds matching |
 | `gov_transactions` | `id`, `worker_id`, `type` (visa_new, visa_renewal, labour_card, transfer, cancellation, clearance), `reference`, `status`, `waiting_on` (company, ministry, worker), `fees`, `submitted_on`, `completed_on` | Linked to the document it renews |
@@ -75,6 +80,8 @@ A worker is placed on a site through an **assignment**, which links the worker t
 | `client_contracts` | `id`, `client_id`, `reference`, `start_date`, `end_date`, `auto_approve_days`, `min_billable_hours`, `escalation_date`, `file_id` |  |
 | `rate_cards` | `id`, `contract_id`, `valid_from`, `valid_to`, `approved_by` | No overlapping versions per contract; changes need a second person to approve |
 | `rate_lines` | `id`, `rate_card_id`, `trade`, `hour_type` (normal, overtime, rest_day, holiday, night), `unit` (hour, day, month), `rate` | Unique on rate card, trade and hour type |
+| `supply_agreements` | `id`, `payee` (sponsor, middleman, worker), `sponsor_id NULL`, `supplier_id NULL`, `worker_id NULL`, `reference`, `start_date`, `end_date`, `payment_terms_days`, `min_billable_days`, `inclusions jsonb` (accommodation, transport, food, PPE: sponsor or company), `file_id`, `approved_by` | Exactly the columns its payee needs (CHECK): a sponsor company or a middleman is a supplier in the ledger; a free-visa worker paid directly is paid from `cash_pay_lines`; changes need a second person to approve |
+| `supply_rate_lines` | `id`, `supply_agreement_id`, `trade`, `hour_type`, `unit` (hour, day, month), `rate`, `valid_from`, `valid_to` | No overlapping versions per agreement, trade and hour type |
 | `contract_charges` | `id`, `contract_id`, `kind` (accommodation, transport, mobilisation, other), `amount`, `frequency` | Fixed charges added to invoices |
 | `manpower_requests` | `id`, `client_id`, `site_id`, `requested_by`, `status` (open, partly_filled, filled, cancelled), `notes` |  |
 | `request_lines` | `id`, `request_id`, `trade`, `quantity`, `start_date`, `end_date`, `shift`, `skill_level_min` | The filled count is calculated from assignments |
@@ -133,7 +140,9 @@ A worker is placed on a site through an **assignment**, which links the worker t
 | `journals` | `id`, `entity_id`, `date`, `source` (payroll, invoice, payment, bill, manual, opening), `source_id`, `memo`, `posted_at`, `posted_by` | A deferred trigger checks that debits equal credits at commit |
 | `journal_lines` | `id`, `journal_id`, `account_id`, `cost_centre_id NULL`, `debit`, `credit` | Exactly one of debit or credit is above zero |
 | `suppliers` | `id`, `name`, `vat_number`, `payment_terms_days` |  |
-| `supplier_bills` | `id`, `supplier_id`, `number`, `date`, `amount`, `vat`, `cost_centre_id`, `status`, `file_id` | Camp rent, fuel, bus maintenance, visa and agency fees |
+| `supplier_bills` | `id`, `supplier_id`, `kind` (labour, other), `number`, `date`, `amount`, `vat`, `cost_centre_id`, `status`, `file_id`, `wps_proof_file_id NULL` | Camp rent, fuel, bus maintenance, visa and agency fees, and sponsors' labour bills; a labour bill is approved only when every line matches |
+| `supplier_bill_lines` | `id`, `supplier_bill_id`, `kind` (hours, charge), `timesheet_line_id NULL`, `supply_rate_line_id NULL`, `quantity`, `rate`, `amount`, `vat_code` | Each timesheet line is on at most one sponsor bill (partial unique index) |
+| `cash_pay_lines` | `id`, `worker_id`, `supply_agreement_id`, `period_start`, `period_end`, `timesheet_line_ids uuid[]`, `amount`, `receipt_file_id NULL`, `paid_at NULL`, `paid_by NULL` | Free-visa workers paid directly; never part of a payroll run or WPS file; paid only with a signed receipt; each locked line paid once |
 | `company_bank_accounts` | `id`, `bank`, `account_number` (encrypted), `currency`, `ledger_account_id` |  |
 | `bank_statement_lines` | `id`, `bank_account_id`, `date`, `amount`, `reference`, `matched_type`, `matched_id` | Imported from CSV or MT940 |
 
@@ -160,7 +169,7 @@ These tables arrive after go-live. They are designed now so the launch tables ha
 
 ## Security inside the database
 
-**Row-level security.** The API connects as `app_user`, which owns no tables. Each request sets session values (`app.entity_id`, `app.user_id`, `app.role`, `app.site_ids`, `app.client_id`) at the start of its transaction. Every business table has a policy such as:
+**Row-level security.** Each request runs in one transaction that first switches to the `mms_app` role (`SET LOCAL ROLE`; it owns no tables, so every policy applies to it) and sets `app.entity_id` and `app.user_id` (`app.site_ids` and `app.client_id` join with the Version 2 roles). An unset value matches no rows. Every business table has a policy such as:
 
 ```sql
 CREATE POLICY entity_scope ON workers
@@ -173,7 +182,7 @@ CREATE POLICY supervisor_sites ON timesheets
   );
 ```
 
-Migrations run as a separate `app_migrator` role. Reports read from a replica as a read-only role with the same policies.
+Migrations run as the role that owns the tables. In production the API's login role is only a member of `mms_app`, never an owner or superuser. Reports read from a replica as a read-only role with the same policies.
 
 **Constraints the database enforces**
 
@@ -184,6 +193,8 @@ Migrations run as a separate `app_migrator` role. Reports read from a replica as
 | Audit log is append-only | Trigger on `audit_events` (built, migration 0001) |
 | Journals balance | Deferred constraint trigger compares debit and credit totals at commit |
 | A timesheet line is billed once | Partial unique index on `invoice_lines (timesheet_line_id)` where not credited |
+| A timesheet line is paid to a sponsor once | Partial unique index on `supplier_bill_lines (timesheet_line_id)` |
+| One sponsor per worker per day | `EXCLUDE` on `worker_sponsorships (worker_id, daterange(valid_from, valid_to, '[]'))` |
 | Offline events stored once | Unique on `attendance_events (client_event_id)` |
 | Money adds up | CHECK constraints such as `total = subtotal + vat` on invoices and `net = gross - deductions` on payslips |
 
@@ -211,14 +222,14 @@ One REST API under `/api/v1`, described by OpenAPI 3.1 and generated from the co
 
 | Area | Resources |
 |---|---|
-| Platform | `/me`, `/users`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/notifications`, `/approvals`, `/jobs/{id}` |
-| Workforce | `/workers`, `/workers/{id}`, `/workers/{id}/documents`, `/documents/{id}/verify`, `/workers/{id}/contracts`, `/workers/{id}/bank-accounts`, `/workers/{id}/status` |
+| Platform | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/2fa/setup`, `/auth/2fa/confirm`, `/admin/users`, `/admin/users/{id}/reset-password`, `/admin/users/{id}/roles`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/notifications`, `/approvals`, `/jobs/{id}` |
+| Workforce | `/workers`, `/workers/{id}`, `/workers/{id}/documents`, `/documents/{id}/verify`, `/workers/{id}/contracts`, `/workers/{id}/bank-accounts`, `/workers/{id}/status`, `/workers/{id}/sponsorships`, `/sponsors` |
 | Compliance | `/compliance/check`, `/compliance/renewals`, `/workers/{id}/overrides`, `/gov-transactions`, `/absconding-reports` |
-| Commercial | `/clients`, `/clients/{id}/contacts`, `/sites`, `/contracts`, `/contracts/{id}/rate-cards`, `/requests` |
+| Commercial | `/clients`, `/clients/{id}/contacts`, `/sites`, `/contracts`, `/contracts/{id}/rate-cards`, `/requests`, `/supply-agreements`, `/supply-agreements/{id}/rates` |
 | Operations | `/assignments`, `/requests/{id}/matches`, `/roster?site=&from=&to=`, `/bench` |
 | Time | `/``daily-sheets`, `/daily-sheets/{id}/entries`, `/timesheet-packs`, `/attendance-events` (bulk upload from the supervisor app in Version 2), `/timesheets`, `/timesheets/{id}/approve`, `/timesheets/{id}/disputes`, `/leave-requests`, `/leave-balances` |
 | Payroll | `/pay-periods`, `/payroll-runs`, `/payroll-runs/{id}/calculate`, `/payroll-runs/{id}/approve`, `/payroll-runs/{id}/release`, `/payslips/{id}`, `/wps-files`, `/loans`, `/separations`, `/separations/{id}/settlement` |
-| Billing and finance | `/invoices`, `/invoices/generate`, `/invoices/{id}/issue`, `/credit-notes`, `/payments`, `/journals`, `/fiscal-periods/{id}/close`, `/supplier-bills`, `/bank-statements` |
+| Billing and finance | `/invoices`, `/invoices/generate`, `/invoices/{id}/issue`, `/credit-notes`, `/payments`, `/journals`, `/fiscal-periods/{id}/close`, `/supplier-bills`, `/supplier-bills/{id}/match`, `/cash-pay-lists`, `/bank-statements` |
 | Insight | `/dashboard`, `/reports/{key}` |
 
 Built in the first slice: workers, documents, verification, compliance check, renewals, overrides, sites, leave, the dashboard summary, the audit trail and its chain check.

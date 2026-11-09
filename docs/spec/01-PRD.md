@@ -20,7 +20,7 @@ These drive the design; change any of them and the affected sections change with
 
 | Area | Assumption |
 |---|---|
-| Business model | Labour supply / outsourcing: the company sponsors and employs the workers, deploys them to client sites, and bills clients per hour, day or month |
+| Business model | Labour supply / outsourcing: the company sponsors and employs the workers, deploys them to client sites, and bills clients per hour, day or month. When its own workers are not enough, it also uses workers sponsored by other establishments, only through a lawful arrangement (section 4.18) |
 | Jurisdiction | Oman first (Sohar / Muscat); Oman only today (confirmed). Data model stays multi-entity so a UAE or other GCC entity can be added later without a rewrite |
 | Workforce | ~650–700 workers, mostly expatriate blue-collar construction workers (confirmed): labourers and skilled trades such as masons, carpenters, steel fixers, electricians and operators, growth headroom to 2,000 |
 | Office users | 15–25 office staff across HR/PRO, operations, payroll and finance, plus the owner/GM and a system admin, all in Version 1. Site supervisors, client contacts and workers get their own apps in Version 2 |
@@ -66,6 +66,7 @@ A manpower company's margin leaks in four places: workers who sit idle between d
 |---|---|---|
 | No compliance lapses | Workers with an expired mandatory document while deployed | 0 |
 | No compliance lapses | Renewals started ≥ 60 days before expiry | ≥ 95% |
+| No compliance lapses | Outsourced worker-days without a Ministry authorisation, a registered transfer or the owner's approval on file | 0 |
 | Pay right and on time | Salaries paid through WPS by the legal deadline | 100% of months |
 | Pay right and on time | Payroll corrections after release | < 0.5% of payslips |
 | Bill every hour | Approved hours invoiced within 5 days of period close | ≥ 98% |
@@ -103,7 +104,7 @@ Nine roles cover everyone who touches the system; each sees only what their job 
 
 ## 4. Functional requirements by module
 
-Seventeen modules share one worker record, one client record and one ledger of hours — nothing is typed twice. P1 = Version 1 (launch) unless a module is marked Version 2; P2 = after Version 2; P3 = later (see Release plan).
+Eighteen modules share one worker record, one client record and one ledger of hours — nothing is typed twice. P1 = Version 1 (launch) unless a module is marked Version 2; P2 = after Version 2; P3 = later (see Release plan).
 
 ### 4.1 Worker master and document vault — P1
 
@@ -233,6 +234,23 @@ The company keeps its books in Excel today, so the system carries its own double
 - Month-end close with trial balance, profit and loss, balance sheet and VAT return workings; periods lock after close.
 - Full export (CSV/Excel) for the external auditor; an ERP can be connected later if the company outgrows this.
 
+### 4.18 Sponsors and outsourced workers — P1
+
+When its own workers are not enough, the company uses workers sponsored by other establishments. The system knows who sponsors every worker, allows only the lawful ways of using someone else's worker, and keeps their pay apart from the company's own payroll.
+
+- Sponsor register: every establishment that sponsors a worker the company deploys, the company itself first. Each has its legal name, commercial registration (CR) number, Ministry of Labour establishment number, contacts, and documents (CR, licence) with expiry dates. One screen answers "how many sponsors do we have, and how many of our deployed workers does each hold?"
+- Every worker has a sponsor and an engagement, dated and never overwritten:
+    - **Own:** the company sponsors and employs the worker. Everything else in this PRD applies as written.
+    - **Supplied:** the worker stays employed and paid by their sponsor, which lets the company use them under a Ministry of Labour authorisation (Labour Law article 29). The company pays the sponsor's invoice, never the worker.
+    - **Transferred:** a temporary transfer registered with the Ministry under Ministerial Decision 730/2024. For the transfer period the company pays the worker through its own WPS, at no less than the original wage and benefits, and carries every employer obligation.
+    - **Free visa:** sponsored by someone else and working for the company with no authorisation, by the company's decision against the legal advice in section 6. Paid per worker, either directly from a cash pay list with a signed receipt or through a middleman or sponsor who invoices the company; never through the company's WPS.
+- Supply agreements per outside sponsor: reference, dates, the rates the company pays by trade and hour type, who provides accommodation, transport, food and PPE, minimum days, payment terms and the authorisation references. Versioned by date; changes need a second person.
+- Compliance: an outsourced worker's own papers are checked like any worker's, and transfers against the decision's limits. A worker with no authorisation or registered transfer for a date, and every free-visa worker, is shown as Unauthorised and cannot be rostered until the owner approves an override with a reason and an end date. One company setting removes that override and blocks them outright, which is what the law requires.
+- Paying a sponsor: each month the sponsor's invoice is checked line by line against the locked hours of its workers times the agreed rates; any difference holds it for finance, and a sponsor company's invoice also waits for its WPS proof for those workers for the previous month. It is paid as a supplier bill in the ledger (4.17). A free-visa worker is paid as their record says: directly, from a cash pay list with a signed receipt, or through the middleman or sponsor who invoices for them; never through the company's WPS.
+- Billing and margin: the client is billed for an outsourced worker exactly as for an own worker, from the same locked hours and rate card. Margin is the billed amount minus what the company pays for those hours.
+- Owner dashboard: headcount own and outsourced by sponsor, margin on outsourced hours, amounts owed to sponsors, and authorisations ending within 30 days.
+- "Free visa" working is recorded as what it is, by the company's decision against the legal advice in section 6: the engagement, the Unauthorised badge, the owner's approval and every payment show on screen and in the audit trail. Nothing hides these workers from an inspection.
+
 ## 5. Core workflows
 
 A worker moves through five states in their life with the company, and every month their deployed days turn into one locked timesheet that feeds payroll and billing at the same time.
@@ -270,6 +288,9 @@ Oman's rules for expatriate pay are changing in 2026–2027, so every legal rule
 | VAT | Oman VAT on manpower supply invoices | Tax codes per client and line; compliant tax-invoice format | Confirm with the company's tax adviser |
 | Omanisation | Required Omani ratio by activity and size | Live ratio vs. requirement, alert before a hire breaks it | Confirm the company's current requirement with the Ministry of Labour |
 | Passports and documents | Workers keep their own passports; any release/return is consensual and logged | Passport custody log with the worker's signed acknowledgement | Company policy, aligned with the law |
+| Working for someone other than the sponsor | An employer may not let its authorised non-Omani worker work for others, nor employ another employer's worker, unless the Ministry has been told and has authorised it electronically (article 29). Breach: 10 days to 1 month in prison and/or OMR 1,000–2,000 per worker, doubled for a worker who left their employer or on repeat; up to 2 years' ban on recruiting non-Omanis; the worker is deported (article 143) | Every outsourced worker carries a sponsor, an engagement, and the authorisation reference and file for the dates; `checkEligibility` blocks a worker without one until the owner approves an override (company decision); one setting removes the override to follow the law | [Labour Law 53/2023, articles 29 and 143 (decree.om)](https://decree.om/2023/rd20230053/) |
+| Temporary transfer between companies | Allowed only if: the job is not Omanised and stays in the same occupational category; the worker consents; ≥ 6 months' service with the sending company; work permit valid ≥ 6 more months; ≤ 6 months per worker per year; neither company suspended or owing the Ministry; both meet Omanisation; ≤ 50% of either company's registered workers; registered on the Ministry form. The receiver pays at least the original wage and benefits through WPS, carries all obligations, and may not keep the worker afterwards | Limits held in a dated rule table and checked by the compliance engine; transferred workers paid in the company's payroll and WPS; rostering blocked after the transfer ends | [Ministerial Decision 730/2024 (qanoon.om)](https://qanoon.om/p/2024/mol20240730/) |
+| "Free visa" | Not a legal status: working for anyone but the authorised employer is an offence for the worker, the sponsor and the company using them. The fine-free status-correction window closed on 31 Dec 2025 | Recorded as its own engagement (company decision): shown as Unauthorised, rostered only with the owner's approval, never paid through the company's WPS; one setting blocks it outright | [Oman Observer: ROP warning](https://www.omanobserver.om/ampArticle/1156079); [Times of Oman: final grace period](https://cdn-1.timesofoman.com/article/164779-oman-grants-final-grace-period-extension-for-expat-visa-status-until-december) |
 
 **Design rules that follow from this table**
 
@@ -293,6 +314,7 @@ Oman's rules for expatriate pay are changing in 2026–2027, so every legal rule
 | Generate all monthly client invoices | Finance | < 30 minutes |
 | Answer "why is my salary less this month?" | Office staff, from the payslip trace | < 1 minute |
 | Approve a payroll or contract | Owner, from a notification | 2 taps |
+| See every sponsor and how many deployed workers each holds | Owner, operations | < 10 seconds |
 
 ### Usability rules
 
@@ -312,7 +334,7 @@ Oman's rules for expatriate pay are changing in 2026–2027, so every legal rule
 | Speed | 95% of screens load in < 1.5 s; search < 300 ms; payroll calculation for 700 workers < 2 minutes |
 | Availability | 99.9% monthly for web and API; the Version 2 supervisor app works fully offline for 72 hours |
 | Data safety | Point-in-time recovery to any minute in the last 30 days; daily backups kept 1 year; recovery point ≤ 5 min, recovery time ≤ 4 hours |
-| Security | SSO and 2-factor for office users; role- and site-based access; encryption at rest and in transit; annual penetration test |
+| Security | Username, password and mandatory authenticator-app 2-factor for office users, with lockout and idle sessions ended by the server; role- and site-based access; encryption at rest and in transit; annual penetration test |
 | Audit | Every create, change, approval, export and login logged with who, when, before and after; logs tamper-evident and kept 10 years |
 | Privacy | AWS hosting in a PDPL-approved region; PDPL consent, notices and data-subject requests; masking of salary and ID numbers by role |
 | Devices | Desktop: Windows 10/11. Web: last 2 versions of Chrome, Edge, Safari. Mobile (Version 2): Android 9+ on 2 GB RAM, iOS 16+. App size < 30 MB |
@@ -347,6 +369,8 @@ The biggest risk is not the software but dirty starting data and staff who keep 
 | Clients are slow to sign timesheet packs (Version 1) or to approve in the portal (Version 2) | Medium | Medium | Timesheet packs also sent weekly, so month end holds no surprises; auto-approve after an agreed number of days written into contracts |
 | Single-vendor or single-developer dependency | Medium | High | Source code and infrastructure owned by the company; documentation and runbooks as deliverables; second developer reviews all code |
 | Weak connectivity at remote sites | Medium | Medium | Version 1: sheet photos by WhatsApp, originals collected weekly. Version 2: offline-first supervisor app; SMS fallback for critical alerts |
+| Outsourced workers used without a Ministry authorisation, or "free visa" workers taken on to fill a gap | Medium | High | Every unauthorised worker needs the owner's approval and shows on the dashboard; one setting makes it a hard block; the sponsor register and owner dashboard show every outsourced worker and the basis they work on; the labour lawyer signs these rules at G0 |
+| A sponsor takes the company's payment but does not pay its supplied workers | Medium | Medium | Before a sponsor's invoice is paid, its WPS proof for those workers for the previous month is attached |
 
 ### Answers to the open questions (13 Oct 2026)
 
@@ -365,3 +389,5 @@ The biggest risk is not the software but dirty starting data and staff who keep 
 - [ ] Approve the five non-negotiables in section 1 as the acceptance bar.
 - [ ] Name one business owner per module (HR/PRO, ops, payroll, finance) with authority to sign off requirements.
 - [ ] Approve the phased release plan and the parallel-payroll period.
+- [x] Decide whether sponsors and outsourced workers (4.18) ship in Version 1, and list every establishment that sponsors a worker the company deploys today, related companies included.
+- [ ] Ask the labour lawyer to confirm the lawful routes in section 6 (article 29 authorisation, 730/2024 transfer), including whether deploying the company's own workers to client sites needs article 29 authorisation.

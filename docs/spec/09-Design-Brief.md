@@ -86,6 +86,8 @@ One `Badge` with a `status` variant replaces the first slice's scaffold tags. Co
 
 The badge text comes from the API, so the same word appears on every screen and in reports.
 
+Engagement is not a status. A worker who is not the company's own shows a neutral outline `Badge` with a link icon and the word Supplied, Transferred or Free visa, beside the name on lists, the worker file, the roster board and the daily sheet. Own workers show no tag. A worker with no authorisation also carries the blocked badge, worded Unauthorised, until the owner approves an override.
+
 ## Layouts
 
 - **Office app shell:** left sidebar (Dashboard, Workers, Compliance, Clients, Roster, Timesheets, Payroll, Billing, Finance, Reports, Settings), top bar with breadcrumb, Ctrl+K search, notifications and user menu. Content area is a list with a filter bar, opening a sheet on the right for the selected record.

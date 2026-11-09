@@ -32,17 +32,17 @@ The Technical Spec explains how and why the system is built the way it is. This 
 
 | ID | Requirement | Level | Verified by |
 |---|---|---|---|
-| TR-SEC-01 | Office staff and the owner (and client users from Version 2) sign in through Amazon Cognito with mandatory two-factor authentication (authenticator app). | MUST | End-to-end sign-in tests; Cognito settings in Terraform |
+| TR-SEC-01 | Office staff and the owner (and client users from Version 2) sign in through the API's own identity service: username, password (Argon2id) and mandatory two-factor authentication (authenticator app, TOTP). Each code works once, and a first sign-in must replace the temporary password and set up the authenticator. | MUST | API tests for every sign-in path; end-to-end sign-in tests |
 | TR-SEC-02 | Version 2: supervisors and workers sign in with phone number and one-time code the first time, then a PIN or device biometrics. Each account is bound to its device, and every reset is logged with a reason. | MUST | Mobile end-to-end tests |
-| TR-SEC-03 | Access tokens last at most 15 minutes; office sessions end after 30 minutes idle. The desktop app keeps its refresh token in the Windows credential store, never in browser storage. | MUST | Security tests; desktop code review |
+| TR-SEC-03 | Access tokens last at most 15 minutes and are held only in memory. Refresh tokens are opaque, stored only as hashes, sent only in an httpOnly, Secure, SameSite=Strict cookie, and rotated on every use; reusing an old one ends the session. Office sessions end after 30 minutes idle, enforced by the server, or after 12 hours. The desktop app keeps its refresh token in the Windows credential store, never in browser storage. | MUST | API tests for rotation, reuse, idle and expiry; desktop code review |
 | TR-SEC-04 | Every endpoint declares the permission it needs, and anything not declared is denied. Permissions come from the nine PRD roles, scoped by entity, site and client. | MUST | A generated test calls every endpoint as every role and compares the result with the permission matrix |
 | TR-SEC-05 | PostgreSQL row-level security enforces entity, site and client scope even if application code has a bug. | MUST | Database tests attempt cross-scope reads and must get zero rows |
-| TR-SEC-06 | Bank account changes, wage changes, payroll release, rate card changes and write-offs need two different people: one to make the change, another to approve it. | MUST | API tests prove the maker cannot approve |
+| TR-SEC-06 | Bank account changes, wage changes, payroll release, rate card changes, supply agreement rate changes, approval of a sponsor's labour bill and write-offs need two different people: one to make the change, another to approve it. | MUST | API tests prove the maker cannot approve |
 | TR-SEC-07 | Passport, civil ID and bank account numbers show only the last 4 characters unless the user holds the `pii.view` permission. Every unmasking is audited. | MUST | API and component tests |
 | TR-SEC-08 | Traffic is encrypted with TLS 1.2 or later (1.3 preferred). Data at rest is encrypted with KMS, and bank and ID numbers are additionally encrypted per column. | MUST | Configuration scan; database inspection test |
 | TR-SEC-09 | Secrets live only in AWS Secrets Manager. The repository is scanned for secrets on every pull request. | MUST | Secret scanner in CI |
 | TR-SEC-10 | The application meets OWASP ASVS level 2. Dependencies and container images are scanned on every pull request, and no high or critical finding is open at release. | MUST | CI scans; release checklist |
-| TR-SEC-11 | Sign-in and one-time codes are limited to 5 attempts per 15 minutes per user and IP address; the API is limited to 600 requests per minute per user; AWS WAF managed rules are on. | MUST | Automated abuse tests |
+| TR-SEC-11 | Five failed sign-ins or codes lock an account for 15 minutes; more than 20 failures from one IP address in 15 minutes return 429; an unknown user and a wrong password get the same answer in the same time; the API is limited to 600 requests per minute per user; AWS WAF managed rules are on. | MUST | Automated abuse tests |
 | TR-SEC-12 | Uploads accept only PDF, JPG, PNG and HEIC up to 15 MB, and each file is virus-scanned before anyone can open it. | MUST | Upload tests with blocked types and a test virus file |
 | TR-SEC-13 | The desktop app exposes only its own print and device commands, restricts network calls to the API by content security policy, and ships signed installers and signed updates. | MUST | Tauri capability review; signature check in CI |
 | TR-SEC-14 | An external penetration test runs before go-live and every year after; high and critical findings are fixed before release. | MUST | Test report at G4 and yearly |
@@ -131,6 +131,9 @@ The Technical Spec explains how and why the system is built the way it is. This 
 | TR-ENG-09 | Golden suites (300+ payroll cases, billing per contract type, final settlements) pass at 100%, exact to the baisa. Expected values come only from files signed by the payroll officer, accountant or labour lawyer; code owners block any change to them without senior review and a signed reference. | MUST | CI golden-suite gate |
 | TR-ENG-10 | Property tests prove the invariants: net pay is never negative; deductions never exceed the cap; hours paid never exceed hours locked; invoices and journals always add up. | MUST | Property tests in CI |
 | TR-ENG-11 | Mutation score on `packages/core` stays at 80% or above (95% today). | MUST | Mutation gate in CI |
+| TR-ENG-12 | `checkEligibility()` blocks a worker on every date their engagement is supplied or transferred unless a Ministry authorisation or a registered transfer covers that date. Transfers are also checked against Ministerial Decision 730/2024 (at most 6 months per worker per year, at least 6 months' prior service, work permit valid at least 6 more months, worker's consent on file), read from a dated rule version. A free-visa engagement always raises the blocker. Only an override approved by the owner clears it, and only while the company setting allows it (A22); when set to block, nothing does. | MUST | Core tests across the authorisation dates; golden cases signed by the labour lawyer |
+| TR-ENG-13 | Payroll pays a worker only for dates on which their engagement is own or transferred. A supplied or free-visa worker never gets a payslip or a WPS line; a free-visa worker paid directly is paid from a separate cash pay list with a signed receipt. | MUST | Property test over mixed engagements; golden payroll cases |
+| TR-ENG-14 | Each line of a sponsor's labour bill equals a locked timesheet line times its matching supply rate line; a locked line appears on at most one sponsor bill; a bill with an unmatched or different line cannot be approved without a finance reason, and a sponsor company's bill cannot be approved without its WPS proof file. | MUST | Golden cases; property tests; database test of the unique index |
 
 ## 8. Development, testing and release
 
@@ -153,9 +156,9 @@ Each PRD non-negotiable and goal is covered by the requirements below, so a fail
 
 | PRD goal | Technical requirements |
 |---|---|
-| Zero lapsed documents | TR-ENG-02, TR-PLT-09, TR-SEC-04, TR-DAT-01, TR-INT-05 |
-| Pay right, on time, every month | TR-ENG-01, TR-ENG-03 to 06, TR-ENG-09 to 11, TR-INT-01 to 03, TR-PER-04, TR-SEC-06 |
-| Bill every hour | TR-ENG-07, TR-ENG-08, TR-CLI-14, TR-CLI-15, TR-INT-07, TR-PER-05, TR-DAT-03 |
+| Zero lapsed documents | TR-ENG-02, TR-ENG-12, TR-PLT-09, TR-SEC-04, TR-DAT-01, TR-INT-05 |
+| Pay right, on time, every month | TR-ENG-01, TR-ENG-03 to 06, TR-ENG-09 to 11, TR-ENG-13, TR-INT-01 to 03, TR-PER-04, TR-SEC-06 |
+| Bill every hour | TR-ENG-07, TR-ENG-08, TR-ENG-14, TR-CLI-14, TR-CLI-15, TR-INT-07, TR-PER-05, TR-DAT-03 |
 | Workers kept informed | TR-INT-05, TR-INT-06, TR-PER-08 |
 | Owner sees the business in one screen | TR-CLI-01, TR-CLI-09, TR-PER-03 |
 | Convenient to operate (task time budgets) | TR-CLI-02 to 04, TR-CLI-11 to 13, TR-PER-02, TR-PER-03, TR-INT-09 |

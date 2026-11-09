@@ -28,7 +28,7 @@ One language end to end (TypeScript), one database (PostgreSQL), and a modular m
 | Web | The shared interface served as a website (S3 + CloudFront) | The owner on any device, including the phone, and a fallback if an office PC fails; the client portal in Version 2 |
 | Desktop app | Tauri 2, Windows first; Rust modules for silent printing and devices; signed auto-updater; MSI installer | Small, fast native app; silent bulk printing and device access a browser cannot do |
 | Mobile apps | Version 2: Capacitor (Android first, iOS ready) wrapping the shared interface; official push, geolocation and camera plugins; SQLite for offline; supervisor, worker and owner modes | Mature mobile plugins; same screens and logic as web and desktop |
-| Identity | Amazon Cognito: SSO + 2FA for office staff and the owner (Version 1) and for client contacts (Version 2); phone + OTP + PIN for supervisors and workers (Version 2) | Managed by AWS, nothing to patch or host; MFA built in |
+| Identity | The API's own identity service, the same design as the company's warehouse and hospital systems: Argon2id passwords, mandatory authenticator-app (TOTP) 2FA, 15-minute signed access tokens and rotating refresh tokens, for office staff and the owner (Version 1) and client contacts (Version 2); phone + OTP + PIN for supervisors and workers (Version 2) | One design across the company's systems; no outside identity service to configure or pay for; every rule is in our own tests |
 | Reporting | Owner dashboard built in-app; report builder via embedded Metabase on a read replica | Ad-hoc reports without slowing operations |
 | Messaging | WhatsApp Business API, local SMS gateway; Firebase push from Version 2 | Reach workers where they already are |
 | OCR | Passport MRZ read from the uploaded scan on the server in Version 1 (on-device ML Kit reading in the Version 2 mobile app) + server-side OCR for other documents | Instant pre-fill from a scan |
@@ -56,10 +56,13 @@ Three records anchor everything — the Worker, the Client contract, and the loc
 | Workforce | EmploymentContract | basic wage, allowances, hours, leave terms, ticket entitlement, valid_from/to | belongs to Worker; versioned on every pay change (drives WPS contract match) |
 | Workforce | Document / DocumentType | type, number, issue, expiry, file versions, verified_by, mandatory_for (trades, sites) | belongs to Worker; feeds the compliance engine |
 | Workforce | BankAccount | bank, IBAN/account (encrypted), verification status, valid_from | belongs to Worker; changes need 2-person approval |
+| Workforce | Sponsor | kind (own, external), legal name, CR number, Ministry of Labour establishment number, documents with expiry | One own row per entity; has many WorkerSponsorships and SupplyAgreements |
+| Workforce | WorkerSponsorship | sponsor, engagement (own, supplied, transferred, free_visa), authorisation reference and file, consent file, valid_from/to | belongs to Worker; decides who pays the worker and which rules apply |
 | Recruitment | Agency, Candidate, CandidateCost | country, fees, stage, costs by type and currency | Candidate becomes Worker on arrival |
 | Compliance | GovTransaction | type, reference, status, fees, waiting_on, due dates | linked to Worker and Document |
 | Commercial | Client, Site, ClientContact | credit limit, terms, VAT status, geofence | Client has many Sites and Contracts |
 | Commercial | ClientContract, RateCard, RateLine | trade × hour type × rate, minimum hours, inclusions, valid_from/to | priced against Timesheet lines |
+| Commercial | SupplyAgreement, SupplyRateLine | payee (sponsor company, middleman or the free-visa worker), trade × hour type × rate the company pays, inclusions, minimum days, valid_from/to | priced against the same Timesheet lines as client rates |
 | Operations | ManpowerRequest | trade, quantity, skills, site, start/end, shift | filled by Assignments |
 | Operations | Assignment | worker, site, contract, role, start/end, shift pattern | the link that makes hours billable and payable |
 | Time | AttendanceEvent | worker, time, source (office entry from a daily sheet and upload in Version 1; supervisor, self and biometric from Version 2), daily sheet and scan, GPS, photo, device | raw evidence, never edited |
@@ -87,6 +90,7 @@ Four engines hold the business logic; each is a pure, deterministic function ove
 - Called by the roster board, the clock-in endpoint, the payroll run and the match engine — the same rules everywhere, so a worker blocked in one place is blocked in all.
 - Nightly job recomputes every worker's compliance state and renewal calendar, emits alerts at 90/60/30/7 days, and opens renewal tasks in the HR/PRO queue.
 - Overrides are records (who, why, until when), shown on the dashboard until they expire.
+- Engagement is checked like a document: a supplied or transferred worker needs an authorisation or registered transfer covering every date, and transfers are checked against the limits in Ministerial Decision 730/2024 (from a dated rule version). A free-visa worker always carries this blocker. While the company setting allows it (A22), only an override approved by the owner lifts it; when set to block, nothing does.
 
 ### 4.2 Rostering and matching
 
@@ -96,7 +100,7 @@ Four engines hold the business logic; each is a pure, deterministic function ove
 
 ### 4.3 Payroll calculation pipeline
 
-1. **Freeze inputs:** locked timesheet lines, active contracts, leave, loans, deductions and the rule versions effective in the period (split by date if a rule changed mid-period).
+1. **Freeze inputs:** locked timesheet lines, active contracts, leave, loans, deductions and the rule versions effective in the period (split by date if a rule changed mid-period). Only dates on which the worker's engagement is own or transferred are paid; supplied workers are paid by their sponsor and free-visa workers through their payee, and neither enters a run.
 2. **Earnings:** basic (pro-rated by calendar or working days per contract), allowances, overtime by type, holiday and rest-day pay, bonuses.
 3. **Leave pay and absence:** paid leave, sick-leave tiers, unpaid days.
 4. **Deductions:** loans and advances by schedule, then other deductions in a legally defined priority, stopping at the legal cap; anything over the cap rolls to next month and is flagged.
@@ -112,7 +116,8 @@ Runs are idempotent: re-running a draft gives identical results; a released run 
 - Invoices group per client's preference (site, PO, cost centre) and attach the timesheet summary as backup.
 - Unmatched lines (no rate for that trade or hour type) block the invoice and land in the finance queue — nothing is silently unbilled.
 - Daily reconciliation: approved hours vs. invoiced hours; the gap is the revenue-leakage number on the owner dashboard.
-- Margin per line = billed amount − fully loaded cost of the same hours, rolled up per worker, site and client.
+- Supplier side: for each supply agreement and period, the locked lines of that sponsor's supplied workers × the matching supply rate line give the expected bill. The sponsor's invoice is matched to it line by line, and any difference holds the bill for finance; a locked line is paid to a sponsor at most once. A sponsor company's bill also needs its WPS proof for the previous month. A free-visa worker paid directly gets a cash pay list from the same locked lines times their agreed rate, each payment with a signed receipt.
+- Margin per line = billed amount − fully loaded cost of the same hours (for a supplied worker, the supply rate plus anything the company provides), rolled up per worker, site, client and sponsor.
 
 ## 5. Integrations
 
@@ -143,7 +148,7 @@ The system holds 700 people's passports, bank accounts and wages, so the two thr
 
 - Role-based permissions (the nine roles in PRD section 3) plus scope: entity, site, client. Enforced in the API and again by PostgreSQL row-level security.
 - Field-level masking: passport, civil ID and bank numbers show the last 4 digits unless the role needs them; salary visible only to payroll, finance and owner.
-- Office users and the owner: SSO, mandatory 2FA (authenticator app), session timeout 30 min idle, login alerts on new device.
+- Office users and the owner: username and password (Argon2id), mandatory authenticator-app 2FA, 15-minute access tokens held in memory, refresh tokens in an httpOnly cookie rotated on every use (a reused one ends the session), sessions ended by the server after 30 minutes idle or 12 hours, and 5 failed sign-ins lock the account for 15 minutes. Every sign-in attempt is recorded.
 - Supervisors and workers (Version 2 apps): phone + OTP on first login, then a 4–6 digit PIN or device biometrics; device binding; supervisors can reset with a recorded reason.
 - Clients (Version 2) and agencies: separate login realm, scoped to their own data only.
 
@@ -155,6 +160,7 @@ The system holds 700 people's passports, bank accounts and wages, so the two thr
 | Change basic wage or allowances | Maker-checker; above a threshold needs owner approval |
 | Release payroll | Payroll prepares, finance approves, owner approves above a set total |
 | Create a new worker on payroll | Requires a verified passport and an active visa record — no "ghost workers" |
+| Create or change a supply agreement or its rates; approve a sponsor's labour bill | Maker-checker; a bill that differs from locked hours × agreed rates needs finance approval with a reason |
 | Write-off, credit note, rate-card change | Maker-checker with reason |
 | Export of bulk personal data | Logged, limited to admin and owner, watermarked |
 
