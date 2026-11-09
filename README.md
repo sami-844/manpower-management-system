@@ -26,6 +26,13 @@ clients and rate cards, rostering, daily attendance sheets and timesheets, payro
 WPS, billing, ledger, owner dashboard. Version 2 (after go-live) adds the supervisor app,
 client portal and worker app; see "Release scope" in CLAUDE.md.
 
+## How we build (agentic engineering loop)
+
+Every step follows the JavaScript Mastery skills loop, adapted to this system:
+`/remember restore` → `/architect` → build (tests first) → `/review` → `/imprint` (UI) → `/remember save`, with `/recover` when something breaks.
+The skills live in `.claude/skills/`; the build state lives in `docs/PROGRESS.md` (read first, update last), `docs/DECISIONS.md`, `docs/DEFERRED.md` and `docs/ui-registry.md`; the database rulebook is `docs/SCHEMA_GOVERNANCE.md`; the full specification is mirrored in `docs/spec/`.
+`bun run gates` enforces the rules a script can check (migrations lock, money types, dates, sequences, lockfile, golden sign-off, personal data, colours) and runs first in CI.
+
 ## Layout
 
 ```

@@ -35,6 +35,8 @@ jobs:
         with:
           node-version: 22
       - run: bun install --frozen-lockfile
+      - name: Repository gates (migrations lock, money, dates, sequences, lockfile, golden, personal data, colours)
+        run: bun run gates
       - run: bun run typecheck
       - run: bun run test
       - name: Mutation testing (gate 80%)
