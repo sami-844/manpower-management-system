@@ -8,6 +8,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -144,6 +145,8 @@ export const auditEvents = pgTable("audit_events", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   prevHash: text("prev_hash").notNull(),
   hash: text("hash").notNull(),
+  /** 1: entity not in the hash (rows before 2026-11-09); 2: entity hashed. */
+  hashVersion: integer("hash_version").notNull().default(1),
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -267,4 +270,151 @@ export const passwordHistory = pgTable(
     createdAt: moment("created_at").notNull(),
   },
   (t) => [index("password_history_user_idx").on(t.userId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------------------------
+// Sponsors and outsourced workers (PRD 4.18, A21–A24). Business tables: entity-scoped by RLS.
+// ---------------------------------------------------------------------------------------------
+
+/** Ledger counterparties the company pays (Backend Schema "suppliers"); started here for labour payees. */
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id: uuidV7(),
+    entityId,
+    name: text("name").notNull(),
+    vatNumber: text("vat_number"),
+    paymentTermsDays: integer("payment_terms_days").notNull().default(30),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [check("suppliers_terms_ck", sql`${t.paymentTermsDays} between 0 and 365`)],
+);
+
+export const sponsors = pgTable(
+  "sponsors",
+  {
+    id: uuidV7(),
+    entityId,
+    kind: text("kind").notNull(),
+    legalName: text("legal_name").notNull(),
+    crNumber: text("cr_number"),
+    molEstablishmentNo: text("mol_establishment_no"),
+    supplierId: uuid("supplier_id").references(() => suppliers.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("active"),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [
+    check("sponsors_kind_ck", sql`${t.kind} in ('own','external')`),
+    check("sponsors_status_ck", sql`${t.status} in ('active','archived')`),
+    // One own sponsor per entity: the company itself.
+    uniqueIndex("sponsors_one_own_uq").on(t.entityId).where(sql`${t.kind} = 'own'`),
+    uniqueIndex("sponsors_cr_uq").on(t.entityId, sql`lower(${t.crNumber})`).where(sql`${t.crNumber} is not null`),
+  ],
+);
+
+export const supplyAgreements = pgTable(
+  "supply_agreements",
+  {
+    id: uuidV7(),
+    entityId,
+    payee: text("payee").notNull(),
+    sponsorId: uuid("sponsor_id").references(() => sponsors.id, { onDelete: "restrict" }),
+    supplierId: uuid("supplier_id").references(() => suppliers.id, { onDelete: "restrict" }),
+    workerId: uuid("worker_id").references(() => workers.id, { onDelete: "restrict" }),
+    reference: text("reference").notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    paymentTermsDays: integer("payment_terms_days").notNull().default(30),
+    minBillableDays: integer("min_billable_days"),
+    inclusions: jsonb("inclusions").notNull().default(sql`'{}'::jsonb`),
+    status: text("status").notNull().default("draft"),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [
+    check("supply_agreements_payee_ck", sql`${t.payee} in ('sponsor','middleman','worker')`),
+    check("supply_agreements_status_ck", sql`${t.status} in ('draft','approved')`),
+    check("supply_agreements_dates_ck", sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`),
+    // Exactly the columns its payee needs.
+    check(
+      "supply_agreements_payee_columns_ck",
+      sql`(${t.payee} = 'sponsor' and ${t.sponsorId} is not null and ${t.supplierId} is not null and ${t.workerId} is null)
+       or (${t.payee} = 'middleman' and ${t.supplierId} is not null and ${t.workerId} is null)
+       or (${t.payee} = 'worker' and ${t.workerId} is not null and ${t.supplierId} is null)`,
+    ),
+    // Four eyes: whoever records the agreement cannot approve it.
+    check("supply_agreements_four_eyes_ck", sql`${t.approvedBy} is null or ${t.approvedBy} <> ${t.createdBy}`),
+    check("supply_agreements_approved_ck", sql`(${t.status} = 'approved') = (${t.approvedBy} is not null and ${t.approvedAt} is not null)`),
+  ],
+);
+
+export const supplyRateLines = pgTable(
+  "supply_rate_lines",
+  {
+    id: uuidV7(),
+    entityId,
+    supplyAgreementId: uuid("supply_agreement_id").notNull().references(() => supplyAgreements.id, { onDelete: "restrict" }),
+    trade: text("trade").notNull(),
+    hourType: text("hour_type").notNull(),
+    unit: text("unit").notNull(),
+    rate: numeric("rate", { precision: 14, scale: 3 }).notNull(),
+    validFrom: date("valid_from", { mode: "string" }).notNull(),
+    validTo: date("valid_to", { mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: text("created_by").notNull(),
+  },
+  (t) => [
+    index("supply_rate_lines_agreement_idx").on(t.supplyAgreementId),
+    check("supply_rate_lines_hour_type_ck", sql`${t.hourType} in ('normal','overtime','rest_day','holiday','night')`),
+    check("supply_rate_lines_unit_ck", sql`${t.unit} in ('hour','day','month')`),
+    check("supply_rate_lines_rate_ck", sql`${t.rate} >= 0`),
+    check("supply_rate_lines_dates_ck", sql`${t.validTo} is null or ${t.validTo} >= ${t.validFrom}`),
+  ],
+);
+
+export const workerSponsorships = pgTable(
+  "worker_sponsorships",
+  {
+    id: uuidV7(),
+    entityId,
+    workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "restrict" }),
+    sponsorId: uuid("sponsor_id").references(() => sponsors.id, { onDelete: "restrict" }),
+    engagement: text("engagement").notNull(),
+    supplyAgreementId: uuid("supply_agreement_id").references(() => supplyAgreements.id, { onDelete: "restrict" }),
+    authorisationRef: text("authorisation_ref"),
+    authorisationFileId: uuid("authorisation_file_id"),
+    consentFileId: uuid("consent_file_id"),
+    validFrom: date("valid_from", { mode: "string" }).notNull(),
+    validTo: date("valid_to", { mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: text("created_by").notNull(),
+  },
+  (t) => [
+    index("worker_sponsorships_worker_idx").on(t.workerId),
+    index("worker_sponsorships_sponsor_idx").on(t.sponsorId),
+    check("worker_sponsorships_engagement_ck", sql`${t.engagement} in ('own','supplied','transferred','free_visa')`),
+    check("worker_sponsorships_sponsor_ck", sql`${t.sponsorId} is not null or ${t.engagement} = 'free_visa'`),
+    check("worker_sponsorships_own_ck", sql`${t.engagement} <> 'own' or (${t.supplyAgreementId} is null and ${t.authorisationRef} is null)`),
+    check("worker_sponsorships_dates_ck", sql`${t.validTo} is null or ${t.validTo} >= ${t.validFrom}`),
+  ],
+);
+
+/** Non-legal company settings (Backend Schema "settings"), e.g. outsourcing.unauthorised (A22). */
+export const settings = pgTable(
+  "settings",
+  {
+    entityId,
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.entityId, t.key] })],
 );

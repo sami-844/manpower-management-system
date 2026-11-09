@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { and, asc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import {
   DOCUMENT_TYPES,
+  ENGAGEMENTS,
   renewalStatus,
   summariseWorkerCompliance,
   WORKER_STATUSES,
@@ -15,7 +16,8 @@ import { CLOCK, type Clock } from "../common/clock";
 import { maskNumber } from "../common/mask";
 import { calendarDate } from "../common/validation";
 import { DB, type Database } from "../db/client";
-import { leavePeriods, workerDocuments, workers } from "../db/schema";
+import { leavePeriods, sponsors, workerDocuments, workers, workerSponsorships } from "../db/schema";
+import { engagementSchema, isUnauthorised, recordEngagement } from "../sponsors/sponsors";
 
 export const createWorkerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -26,6 +28,8 @@ export const createWorkerSchema = z.object({
   phone: z.string().trim().max(30).optional(),
   dateOfBirth: calendarDate.optional(),
   joinedOn: calendarDate.optional(),
+  // How the worker comes to work for the company (PRD 4.18); the company's own unless said otherwise.
+  engagement: engagementSchema.default({ engagement: "own" }),
 });
 
 export const addDocumentSchema = z
@@ -45,6 +49,9 @@ export const listWorkersSchema = z.object({
   search: z.string().trim().max(60).optional(),
   status: z.enum(WORKER_STATUSES).optional(),
   compliance: z.enum(["ok", "due", "incomplete", "expired"]).optional(),
+  engagement: z.enum(ENGAGEMENTS).optional(),
+  sponsorId: z.string().uuid().optional(),
+  unauthorised: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -68,8 +75,9 @@ export class WorkersService {
   ) {}
 
   async create(input: z.infer<typeof createWorkerSchema>, actor: string) {
+    const { engagement, ...fields } = input;
     return this.db.orm.transaction(async (tx) => {
-      const [worker] = await tx.insert(workers).values(input).returning();
+      const [worker] = await tx.insert(workers).values(fields).returning();
       await this.audit.record(tx, {
         actor,
         action: "worker.create",
@@ -78,13 +86,43 @@ export class WorkersService {
         before: null,
         after: worker,
       });
-      return worker!;
+      const current = await recordEngagement(tx, this.audit, worker!.id, { ...engagement, validFrom: fields.joinedOn ?? this.clock.today() }, actor);
+      return { ...worker!, engagement: current };
     });
+  }
+
+  /** Each worker's engagement today, with the sponsor's name (PRD 4.18). */
+  private async currentEngagements(workerIds: string[]) {
+    if (!workerIds.length) return new Map<string, { engagement: string; sponsorId: string | null; sponsorName: string | null; isUnauthorised: boolean }>();
+    const today = this.clock.today();
+    const rows = await this.db.orm
+      .select({ s: workerSponsorships, sponsorName: sponsors.legalName })
+      .from(workerSponsorships)
+      .leftJoin(sponsors, eq(sponsors.id, workerSponsorships.sponsorId))
+      .where(
+        and(
+          inArray(workerSponsorships.workerId, workerIds),
+          lte(workerSponsorships.validFrom, today),
+          or(isNull(workerSponsorships.validTo), gte(workerSponsorships.validTo, today)),
+        ),
+      );
+    return new Map(
+      rows.map((r) => [
+        r.s.workerId,
+        { engagement: r.s.engagement, sponsorId: r.s.sponsorId, sponsorName: r.sponsorName, isUnauthorised: isUnauthorised(r.s.engagement, r.s.authorisationRef) },
+      ]),
+    );
   }
 
   async list(query: z.infer<typeof listWorkersSchema>) {
     const all = await this.allWithCompliance(query);
-    const filtered = query.compliance ? all.filter((w) => w.compliance.state === query.compliance) : all;
+    const filtered = all.filter(
+      (w) =>
+        (!query.compliance || w.compliance.state === query.compliance) &&
+        (!query.engagement || w.engagement?.engagement === query.engagement) &&
+        (!query.sponsorId || w.engagement?.sponsorId === query.sponsorId) &&
+        (!query.unauthorised || (w.engagement?.isUnauthorised ?? false) === (query.unauthorised === "true")),
+    );
     return { total: filtered.length, items: filtered.slice(query.offset, query.offset + query.limit) };
   }
 
@@ -106,6 +144,7 @@ export class WorkersService {
       ? await this.db.orm.select().from(workerDocuments).where(inArray(workerDocuments.workerId, rows.map((r) => r.id)))
       : [];
     const docsByWorker = Map.groupBy(docs, (d) => d.workerId);
+    const engagements = await this.currentEngagements(rows.map((r) => r.id));
     const today = this.clock.today();
 
     return rows.map((w) => ({
@@ -116,6 +155,7 @@ export class WorkersService {
       trade: w.trade,
       status: w.status,
       compliance: summariseWorkerCompliance((docsByWorker.get(w.id) ?? []).map(asCoreDocument), today),
+      engagement: engagements.get(w.id) ?? null,
     }));
   }
 
@@ -131,6 +171,7 @@ export class WorkersService {
     const today = this.clock.today();
     return {
       ...worker,
+      engagement: (await this.currentEngagements([id])).get(id) ?? null,
       compliance: summariseWorkerCompliance(docs.map(asCoreDocument), today),
       documents: docs.map((d) => ({
         ...d,

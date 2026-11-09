@@ -37,6 +37,7 @@ export async function provisionUser(
       subjectId: user!.id,
       before: null,
       after: { ...publicUser(user!), roles: input.roles, entityId: input.entityId },
+      entityId: input.entityId,
     });
   });
   return { created: true, temporaryPassword };

@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req } from "@nestjs/common";
 import { RequirePermission } from "../auth/permissions";
-import { Actor } from "../common/actor";
+import type { AuthedRequest } from "../auth/auth.guard";
 import { parse, parseId } from "../common/validation";
 import { checkSchema, ComplianceService, overrideSchema } from "./compliance.service";
 
@@ -23,8 +23,8 @@ export class ComplianceController {
 
   @RequirePermission("overrides.create")
   @Post("workers/:id/overrides")
-  addOverride(@Param("id") id: string, @Body() body: unknown, @Actor() actor: string) {
-    return this.compliance.addOverride(parseId(id), parse(overrideSchema, body), actor);
+  addOverride(@Param("id") id: string, @Body() body: unknown, @Req() req: AuthedRequest) {
+    return this.compliance.addOverride(parseId(id), parse(overrideSchema, body), req.auth!);
   }
 
   @RequirePermission("dashboard.read")

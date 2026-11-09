@@ -195,11 +195,15 @@ export class AdminUsersService {
    */
   private async load(tx: Parameters<Parameters<Database["orm"]["transaction"]>[0]>[0], actor: Principal, userId: string) {
     const memberships = await tx
-      .select({ entityId: userRoles.entityId, revokedAt: userRoles.revokedAt })
+      .select({ entityId: userRoles.entityId, revokedAt: userRoles.revokedAt, createdAt: userRoles.createdAt })
       .from(userRoles)
       .where(eq(userRoles.userId, userId));
-    const belongs = memberships.some((m) => m.entityId === actor.entityId);
-    const elsewhere = memberships.some((m) => m.entityId !== actor.entityId && m.revokedAt === null);
+    const active = memberships.filter((m) => m.revokedAt === null);
+    const elsewhere = active.some((m) => m.entityId !== actor.entityId);
+    // Someone with no active role anywhere belongs to the entity they were last given a role in,
+    // so their last company's admin can give them roles again; nobody else can touch them.
+    const latest = [...memberships].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    const belongs = active.some((m) => m.entityId === actor.entityId) || (active.length === 0 && latest?.entityId === actor.entityId);
     const [user] = belongs ? await tx.select().from(users).where(eq(users.id, userId)).for("update") : [];
     if (!user) throw problem(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "No such user.");
     if (elsewhere) throw problem(HttpStatus.FORBIDDEN, "USER_IN_OTHER_ENTITY", "This user also works for another company; an admin of both must change them.");

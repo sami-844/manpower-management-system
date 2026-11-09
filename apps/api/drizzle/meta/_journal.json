@@ -50,6 +50,20 @@
       "when": 1794251933779,
       "tag": "0006_audit_row_security",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794252393338,
+      "tag": "0007_sponsors_outsourcing_and_audit_hash_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794252394028,
+      "tag": "0008_sponsors_rules_and_backfill",
+      "breakpoints": true
     }
   ]
 }

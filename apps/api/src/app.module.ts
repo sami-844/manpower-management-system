@@ -15,6 +15,7 @@ import { ComplianceController } from "./compliance/compliance.controller";
 import { ComplianceService } from "./compliance/compliance.service";
 import { createDatabase, DB, type Database } from "./db/client";
 import { SitesModule } from "./sites/sites.module";
+import { SponsorsModule } from "./sponsors/sponsors";
 import { WorkersController } from "./workers/workers.controller";
 import { WorkersService } from "./workers/workers.service";
 
@@ -50,7 +51,7 @@ class CoreModule implements OnApplicationShutdown {
 }
 
 @Module({
-  imports: [CoreModule, SitesModule],
+  imports: [CoreModule, SitesModule, SponsorsModule],
   controllers: [HealthController, AuthController, AdminUsersController, AuditController, WorkersController, ComplianceController],
   providers: [
     WorkersService,

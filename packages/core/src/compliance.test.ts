@@ -373,3 +373,99 @@ describe("documentLabel", () => {
     ]);
   });
 });
+
+// PRD 4.18, A22 — a worker the company does not sponsor needs a recorded basis for every day:
+// own, an authorised supply or registered transfer, or the owner's approval of an unauthorised one.
+describe("checkEligibility — engagements (sponsors and outsourced workers)", () => {
+  const own = { engagement: "own" as const, from: "2026-01-01", to: null, hasAuthorisation: false };
+
+  it("does not check engagements when none are given (callers that predate sponsors)", () => {
+    expect(checkEligibility(base()).eligible).toBe(true);
+  });
+
+  it("allows an own worker and an authorised supplied or transferred worker", () => {
+    expect(checkEligibility(base({ engagements: [own] })).eligible).toBe(true);
+    for (const engagement of ["supplied", "transferred"] as const) {
+      const r = checkEligibility(base({ engagements: [{ engagement, from: "2026-10-01", to: "2026-12-31", hasAuthorisation: true }] }));
+      expect(r.blockers).toEqual([]);
+    }
+  });
+
+  it("blocks days with no engagement recorded, and no override lifts it", () => {
+    const partial = [{ ...own, from: "2026-11-10" }];
+    const r = checkEligibility(
+      base({
+        engagements: partial,
+        overrides: [{ code: "NO_ENGAGEMENT", validUntil: "2026-12-31", approvedBy: "owner", reason: "try" }],
+      }),
+    );
+    expect(codes(r.blockers)).toEqual(["NO_ENGAGEMENT"]);
+    expect(r.blockers[0]!.message).toContain("2026-11-01");
+    expect(r.blockers[0]!.message).toContain("2026-11-09");
+  });
+
+  it("finds a gap between two engagements and after one that ends", () => {
+    const r = checkEligibility(
+      base({
+        engagements: [
+          { ...own, to: "2026-11-05" },
+          { engagement: "supplied", from: "2026-11-08", to: "2026-11-25", hasAuthorisation: true },
+        ],
+      }),
+    );
+    expect(r.blockers.filter((b) => b.code === "NO_ENGAGEMENT")).toHaveLength(2);
+  });
+
+  it.each([
+    ["free_visa", true],
+    ["free_visa", false],
+    ["supplied", false],
+    ["transferred", false],
+  ] as const)("blocks %s (authorisation on file: %s) as unauthorised", (engagement, hasAuthorisation) => {
+    const r = checkEligibility(base({ engagements: [{ engagement, from: "2026-10-01", to: null, hasAuthorisation }] }));
+    expect(codes(r.blockers)).toEqual(["UNAUTHORISED_ENGAGEMENT"]);
+  });
+
+  it("lets an owner-approved override lift an unauthorised engagement while the policy allows it", () => {
+    const override = { code: "UNAUTHORISED_ENGAGEMENT" as const, validUntil: "2026-11-30", approvedBy: "owner", reason: "Client deadline" };
+    const engagements = [{ engagement: "free_visa" as const, from: "2026-10-01", to: null, hasAuthorisation: false }];
+    const allowed = checkEligibility(base({ engagements, overrides: [override], unauthorisedPolicy: "allow_with_owner_approval" }));
+    expect(allowed.eligible).toBe(true);
+    expect(allowed.warnings).toContainEqual(expect.objectContaining({ code: "OVERRIDDEN", overriddenCode: "UNAUTHORISED_ENGAGEMENT" }));
+    const defaulted = checkEligibility(base({ engagements, overrides: [override] }));
+    expect(defaulted.eligible).toBe(true);
+  });
+
+  it("refuses every override for an unauthorised engagement when the policy is block", () => {
+    const r = checkEligibility(
+      base({
+        engagements: [{ engagement: "supplied", from: "2026-10-01", to: null, hasAuthorisation: false }],
+        overrides: [{ code: "UNAUTHORISED_ENGAGEMENT", validUntil: "2026-12-31", approvedBy: "owner", reason: "Client deadline" }],
+        unauthorisedPolicy: "block",
+      }),
+    );
+    expect(codes(r.blockers)).toEqual(["UNAUTHORISED_ENGAGEMENT"]);
+  });
+
+  it("names the engagement and the dates in words HR can act on", () => {
+    const r = checkEligibility(base({ engagements: [{ engagement: "free_visa", from: "2026-10-01", to: null, hasAuthorisation: false }] }));
+    expect(r.blockers[0]!.message).toMatch(/free visa/i);
+    expect(r.blockers[0]!.message).toMatch(/owner/i);
+  });
+
+  it("ignores engagements outside the period", () => {
+    const r = checkEligibility(
+      base({
+        engagements: [
+          { engagement: "free_visa", from: "2026-01-01", to: "2026-10-31", hasAuthorisation: false },
+          { ...own, from: "2026-11-01" },
+        ],
+      }),
+    );
+    expect(r.eligible).toBe(true);
+  });
+
+  it("rejects an engagement that ends before it starts", () => {
+    expect(() => checkEligibility(base({ engagements: [{ ...own, from: "2026-11-10", to: "2026-11-01" }] }))).toThrow(/engagement/i);
+  });
+});

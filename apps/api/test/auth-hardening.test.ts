@@ -116,7 +116,8 @@ describe("the audit trail is scoped by entity and stays one chain", () => {
 
     expect((await ctx.api("hr.officer").get("/api/audit").query({ subjectId: theirs.body.id })).body.items).toEqual([]);
     expect((await ctx.api(null).get("/api/audit").query({ subjectId: ours.id }).set(bearer(accessToken))).body.items).toEqual([]);
-    expect((await ctx.api(null).get("/api/audit").query({ subjectId: theirs.body.id }).set(bearer(accessToken))).body.items).toHaveLength(1);
+    const own = (await ctx.api(null).get("/api/audit").query({ subjectId: theirs.body.id }).set(bearer(accessToken))).body.items;
+    expect(own.map((e: { action: string }) => e.action)).toEqual(["worker.create", "worker.engagement"]);
 
     // Other test files deliberately forge a row to prove tamper detection, so check the links made
     // here: each new event's prev_hash is the hash of the event just before it, whatever its entity.

@@ -41,12 +41,37 @@ export type BlockerCode =
   | "DOCUMENT_EXPIRES_DURING_PERIOD"
   | "EXPIRY_DATE_MISSING"
   | "WORKER_NOT_ACTIVE"
-  | "LEAVE_OVERLAP";
+  | "LEAVE_OVERLAP"
+  | "NO_ENGAGEMENT"
+  | "UNAUTHORISED_ENGAGEMENT";
+
+/**
+ * How a worker comes to work for the company (PRD 4.18): sponsored by it (own), used under a
+ * Ministry authorisation from their sponsor (supplied), on a registered temporary transfer
+ * (transferred, Ministerial Decision 730/2024), or with no authorisation at all (free_visa).
+ */
+export const ENGAGEMENTS = ["own", "supplied", "transferred", "free_visa"] as const;
+export type Engagement = (typeof ENGAGEMENTS)[number];
+
+/** One dated sponsorship record; `to: null` means open-ended. */
+export interface EngagementPeriod {
+  engagement: Engagement;
+  from: CalendarDate;
+  to: CalendarDate | null;
+  /** A Ministry authorisation or registered transfer is on file (ignored for own and free_visa). */
+  hasAuthorisation: boolean;
+}
+
+/**
+ * The company setting `outsourcing.unauthorised` (A22). With "allow_with_owner_approval" an
+ * unauthorised engagement can be lifted by an owner-approved override; with "block" nothing lifts it.
+ */
+export type UnauthorisedPolicy = "allow_with_owner_approval" | "block";
 
 export type WarningCode = "DOCUMENT_EXPIRING_SOON" | "DOCUMENT_UNVERIFIED" | "OVERRIDDEN";
 
 /** Blockers that no override may ever lift. */
-const NON_OVERRIDABLE: readonly BlockerCode[] = ["WORKER_NOT_ACTIVE"];
+const NON_OVERRIDABLE: readonly BlockerCode[] = ["WORKER_NOT_ACTIVE", "NO_ENGAGEMENT"];
 
 export interface Issue<C extends string = string> {
   code: C;
@@ -90,6 +115,9 @@ export interface EligibilityInput {
   leave?: readonly DateRange[];
   overrides?: readonly Override[];
   rules?: ComplianceRules;
+  /** The worker's sponsorship records. Omitted: no engagement check (callers that predate sponsors). */
+  engagements?: readonly EngagementPeriod[];
+  unauthorisedPolicy?: UnauthorisedPolicy;
 }
 
 export interface EligibilityResult {
@@ -135,6 +163,61 @@ function validateInput(input: EligibilityInput): void {
       throw new Error("Every override needs a named approver and a reason");
     }
   }
+  for (const e of input.engagements ?? []) {
+    if (!isValidDate(e.from) || (e.to !== null && (!isValidDate(e.to) || e.to < e.from))) {
+      throw new Error(`Invalid engagement ${e.from} → ${e.to ?? "open"}`);
+    }
+  }
+}
+
+const ENGAGEMENT_LABELS: Record<Engagement, string> = {
+  own: "Own worker",
+  supplied: "Supplied worker",
+  transferred: "Transferred worker",
+  free_visa: "Free visa worker",
+};
+
+/** Every stretch of the period that no engagement covers, as [from, to] pairs. */
+function uncoveredSpans(engagements: readonly EngagementPeriod[], period: DateRange): DateRange[] {
+  const covering = engagements
+    .filter((e) => rangesOverlap({ from: e.from, to: e.to ?? period.to }, period))
+    .sort((a, b) => (a.from < b.from ? -1 : 1));
+  const gaps: DateRange[] = [];
+  let cursor = period.from;
+  for (const e of covering) {
+    if (e.from > cursor) gaps.push({ from: cursor, to: addDays(e.from, -1) });
+    const end = e.to ?? period.to;
+    if (end >= cursor) cursor = addDays(end, 1);
+    if (cursor > period.to) return gaps;
+  }
+  if (cursor <= period.to) gaps.push({ from: cursor, to: period.to });
+  return gaps;
+}
+
+function engagementBlockers(input: EligibilityInput): Issue<BlockerCode>[] {
+  const engagements = input.engagements;
+  if (!engagements) return [];
+  const { period } = input;
+  const blockers: Issue<BlockerCode>[] = uncoveredSpans(engagements, period).map((gap) => ({
+    code: "NO_ENGAGEMENT",
+    message: `No sponsor or engagement is recorded for ${gap.from} → ${gap.to}`,
+  }));
+  const unauthorised = engagements.find(
+    (e) =>
+      rangesOverlap({ from: e.from, to: e.to ?? period.to }, period) &&
+      (e.engagement === "free_visa" || (e.engagement !== "own" && !e.hasAuthorisation)),
+  );
+  if (unauthorised) {
+    const why = unauthorised.engagement === "free_visa" ? "works with no authorisation" : "has no Ministry authorisation or registered transfer on file";
+    blockers.push({
+      code: "UNAUTHORISED_ENGAGEMENT",
+      message:
+        input.unauthorisedPolicy === "block"
+          ? `${ENGAGEMENT_LABELS[unauthorised.engagement]} ${why}; the company setting blocks this`
+          : `${ENGAGEMENT_LABELS[unauthorised.engagement]} ${why}; needs the owner's approval`,
+    });
+  }
+  return blockers;
 }
 
 export function checkEligibility(input: EligibilityInput): EligibilityResult {
@@ -197,7 +280,10 @@ export function checkEligibility(input: EligibilityInput): EligibilityResult {
     });
   }
 
-  const remaining = applyOverrides(blockers, input.overrides ?? [], period.to, warnings);
+  blockers.push(...engagementBlockers(input));
+
+  const locked = input.unauthorisedPolicy === "block" ? [...NON_OVERRIDABLE, "UNAUTHORISED_ENGAGEMENT" as const] : NON_OVERRIDABLE;
+  const remaining = applyOverrides(blockers, input.overrides ?? [], period.to, warnings, locked);
   return { eligible: remaining.length === 0, blockers: remaining, warnings };
 }
 
@@ -206,9 +292,10 @@ function applyOverrides(
   overrides: readonly Override[],
   periodEnd: CalendarDate,
   warnings: EligibilityResult["warnings"],
+  nonOverridable: readonly BlockerCode[],
 ): Issue<BlockerCode>[] {
   return blockers.filter((b) => {
-    if (NON_OVERRIDABLE.includes(b.code)) return true;
+    if (nonOverridable.includes(b.code)) return true;
     const match = overrides.find(
       (o) => o.code === b.code && o.documentType === b.documentType && o.validUntil >= periodEnd,
     );
