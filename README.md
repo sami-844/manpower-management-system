@@ -21,7 +21,12 @@ are in [CLAUDE.md](CLAUDE.md).
 | Audit | Every change is recorded with who, when, before and after, in a hash-chained log the database refuses to edit |
 | Desktop | Windows app wrapping the same screens; prints batches to a chosen printer with no dialog |
 
-Not built yet (next slices of Version 1, in PRD order): sign-in with Amazon Cognito,
+Sign-in (DECISIONS A25): username, password and an authenticator app, with first-sign-in
+password change and authenticator set-up; every API route checks a permission; PostgreSQL
+row-level security scopes data by company. Sponsors and outsourced workers (PRD 4.18):
+API built, screens to follow (DEFERRED X13).
+
+Not built yet (next slices of Version 1, in PRD order):
 clients and rate cards, rostering, daily attendance sheets and timesheets, payroll and
 WPS, billing, ledger, owner dashboard. Version 2 (after go-live) adds the supervisor app,
 client portal and worker app; see "Release scope" in CLAUDE.md.
@@ -116,15 +121,17 @@ bun run --filter @mms/desktop test:rust
 
 | Suite | Tests |
 | --- | --- |
-| Core engines | 94, including property-based; mutation score 95% |
-| API (PostgreSQL) | 29 |
-| Web components | 45 |
+| Core engines | 107, including property-based; mutation score 89.8% |
+| API (PostgreSQL) | 95 |
+| Web components | 67 |
 | End-to-end | 3 journeys × 2 screen sizes |
 | Print module (Rust) | 10 |
 
 ## Before real data goes in
 
-- Replace the `x-user` header with Amazon Cognito sign-in and role checks.
+- Set `AUTH_ACCESS_KEY` and `AUTH_SEAL_KEY` (base64, 32 bytes each, different) and
+  `WEB_ORIGIN` in production; the API refuses to start without them. Create the first
+  admin with `bun run --cwd apps/api auth:bootstrap-admin <username>`.
 - Run the Discovery print test on the company's own printers: 700 payslips and 200 ID
   cards with no dialog (Printers screen → Print test page is the first step).
 - Buy a Windows code-signing certificate and add Tauri's signed auto-updater.

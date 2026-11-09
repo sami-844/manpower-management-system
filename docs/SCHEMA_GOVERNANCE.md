@@ -32,7 +32,7 @@
 
 ## Security inside the database
 
-- Row-level security on every business table, keyed on `app.entity_id`, `app.user_id`, `app.role`, `app.site_ids`, `app.client_id`, set per request by the API. The API connects as `app_user`, which owns no tables.
+- Row-level security on every business table, keyed on `app.entity_id`, `app.user_id`, `app.role`, `app.site_ids`, `app.client_id`, set per request by the API. Every signed-in request runs in one transaction that switches to `mms_app` (`SET LOCAL ROLE`; it owns no tables and cannot delete) and sets `app.entity_id` and `app.user_id` (`apps/api/src/db/client.ts`). New tables get an `entity_scope` policy in the migration that creates them; `mms_app` gets privileges through default privileges.
 - `audit_events` is append-only by trigger and SHA-256 hash-chained; never truncated.
 - Locked timesheets, released payroll runs, issued invoices and closed periods are immutable by trigger; corrections are new records.
 

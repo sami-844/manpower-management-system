@@ -8,8 +8,8 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 (5) — Specification extended for sponsors and outsourced workers (PRD 4.18), with Oman law researched; no code. D13–D16 raised.
-**Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 45 passed · e2e 6/6 · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
+**Last session:** 2026-11-09 (6) — Own authentication (A25) with permissions on every route and PostgreSQL row-level security; sponsors and outsourced workers API (PRD 4.18, A21–A24); web sign-in. Branch `feat/auth-and-sponsors`.
+**Gates (2026-11-09, `feat/auth-and-sponsors`):** core 107 passed (mutation 89.8 %) · API 95 passed (PostgreSQL 16) · web 67 passed · typecheck clean · `bun run gates` green · e2e now signs in with a live authenticator code (accounts: `bun run --filter @mms/api e2e:accounts`).
 
 ## How a step runs
 
@@ -23,6 +23,8 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 
 ## Completed
 
+- [x] Own authentication (A25, HMS design): Argon2id, mandatory TOTP, 15-minute access tokens in memory, rotating refresh cookie with reuse detection, server idle and absolute limits, reserve-then-verify lockout, per-IP and per-user limits; default-deny permissions on every route (test-checked); requests run as `mms_app` under entity row-level security (audit included, one hash chain, hash v2 covers the entity); admin user endpoints; bootstrap and demo-user scripts; web sign-in, first-sign-in set-up, Admin › Users; sign-out fails closed. Six security reviews' findings fixed with regression tests. 2026-11-09
+- [x] Sponsors and outsourced workers API (PRD 4.18, A21–A24): sponsor register with head-counts, dated engagements (own, supplied, transferred, free_visa), authorisations verified by a second person, owner-only override behind `outsourcing.unauthorised`, supply agreements with four eyes and decimal rates; every existing worker backfilled as own. Screens, labour bills and the 730/2024 limits deferred (X11–X13). 2026-11-09
 - [x] Hosted client demo: `wrangler.jsonc` + README "Deploy to Cloudflare" button + `bun run deploy`; `--mode demo` build answers the web's 13 API calls in the browser (`apps/web/src/demo/server.ts`, `@mms/core` engines, fictional seed recipe, hash-chained audit), 6 tests; Playwright 6/6 against the hosted build with no API server. Public GitHub repository (DECISIONS A19, A20). 2026-11-09
 - [x] Version 1 demo foundation (branch `feat/v1-demo-foundation`): Tailwind v4 + shadcn/ui (Radix, `rtl: true`) with the Design Brief tokens; dashboard-01 shell (role-filtered sidebar, breadcrumb, Ctrl+K S-03, notifications); demo sign-in S-01; every V1 screen S-01…S-41 built. Real API for workers, documents, verification, eligibility, renewals, overrides, leave, sites and audit; typed fictional demo layer (`apps/web/src/demo/`) for clients, operations, time, payroll, billing, ledger, insight and admin, each screen badged "Sample data". Web tests 17 → 39 (demo money/ledger invariants, entry-grid keyboard); e2e signs in first. 2026-11-09
 
@@ -56,7 +58,7 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - S1 · Silent-print proof — blocked on **D7** (office printer models and access to them). Ask: company IT contact, 2026-11-09.
 - S1 · WPS sample file — blocked on **D8** (Bank Muscat WPS specification and test channel). Ask: finance lead with Bank Muscat, 2026-11-09.
 - G0 — needs **D1–D4** answered by the owner.
-- Sponsors and outsourced workers (PRD 4.18; S4, S6, S7, S15) — blocked on **D13** (Version 1 or later; owner), **D14** (who sponsors today's workers; owner with HR/PRO), **D15** (lawful routes; labour lawyer) and **D16** (supply terms and VAT; owner, finance, tax adviser). Raised 2026-11-09. D15 (1) and (4) may also touch assignments and the cash list for the company's own workers.
+- Real sponsor data and labour-bill terms — need **D14** (who sponsors today's workers) and **D16** (supply terms, VAT). **D15** (labour lawyer) decides whether `outsourcing.unauthorised` moves to `block`; its points (1) and (4) may also touch assignments and the cash list for the company's own workers.
 
 ## Notes
 
@@ -73,6 +75,15 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 ---
 
 ## Session log (newest first)
+
+**2026-11-09 (6) — Authentication and the sponsors backend. Branch `feat/auth-and-sponsors` (worktree `../manpower-system-build`), not pushed.**
+
+- **Asked by Sami:** answer the open questions in Claude with options; then build authentication (backend, schemas, “super fast and really reliable”), the way the company's WMS and HMS do it; allow free-visa workers for now (Sami's and the client's decision).
+- **Decided:** A21 (Version 1), A22 (unauthorised engagements allowed with the owner's approval behind one setting), A23 (free-visa payees), A24 (WPS proof required), A25 (own identity service, HMS design, replacing Cognito); D6 stays a deploy setting.
+- **Built:** see Completed. Spec and the live document updated to match (PRD 4.18, TRD TR-SEC-01/03/11, TR-ENG-12–14, Backend Schema, Tech Spec, App Flow, Delivery Phases, Implementation Plan, Design Brief). `.gitattributes` pins `*.sql` and the migration lock to LF (Windows checkouts had changed the hashes).
+- **Verified:** gates green; typecheck clean; core 107 (mutation 89.8 %, bar 80 %), API 95, web 67; two deliberate faults (no role switch, no permission check) caught by the tests; security-review findings each fixed with a regression test.
+- **For Sami:** the free-visa allowance is a company decision against the legal advice in PRD section 6 (A22); D15 with the labour lawyer can switch it to `block` in one setting. The PDF and Word copies in `01-Documents` are behind the Markdown.
+- **Next:** merge to `main`, migrate the dev database, create the demo users; then S2 as planned, with the sponsor screens (X13).
 
 **2026-11-09 (5) — Sponsors and outsourced workers, specification only.**
 
