@@ -21,8 +21,10 @@ are in [CLAUDE.md](CLAUDE.md).
 | Audit | Every change is recorded with who, when, before and after, in a hash-chained log the database refuses to edit |
 | Desktop | Windows app wrapping the same screens; prints batches to a chosen printer with no dialog |
 
-Not built yet (next slices, in PRD order): sign-in with Amazon Cognito, clients and rate
-cards, rostering, timesheets, payroll and WPS, billing, ledger, supervisor mobile app.
+Not built yet (next slices of Version 1, in PRD order): sign-in with Amazon Cognito,
+clients and rate cards, rostering, daily attendance sheets and timesheets, payroll and
+WPS, billing, ledger, owner dashboard. Version 2 (after go-live) adds the supervisor app,
+client portal and worker app; see "Release scope" in CLAUDE.md.
 
 ## Layout
 
