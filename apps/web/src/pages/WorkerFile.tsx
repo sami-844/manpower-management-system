@@ -57,7 +57,7 @@ interface AuditRow {
   at: string;
 }
 
-const HR_ROLES = ["hr_pro", "admin"];
+const HR_ROLES = ["hr_pro", "admin"] as const;
 
 export function WorkerFile() {
   const { id = "" } = useParams();
@@ -204,8 +204,8 @@ function DocStatus({ d }: { d: DocView }) {
 
 function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; addedBy: Map<string, string>; onAdd: () => void }) {
   const qc = useQueryClient();
-  const { account } = useSession();
-  const canVerify = !!account && HR_ROLES.includes(account.role);
+  const { account, hasRole } = useSession();
+  const canVerify = hasRole(...HR_ROLES);
   const verify = useMutation({
     mutationFn: (doc: DocView) => api.patch<DocView>(`/api/documents/${doc.id}/verify`),
     onSuccess: (_, doc) => {
@@ -451,7 +451,7 @@ function AddDocumentDialog({ workerId, open, onOpenChange }: { workerId: string;
 
 function EligibilityCheck({ workerId }: { workerId: string }) {
   const today = todayOman();
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const sites = useQuery({ queryKey: ["sites"], queryFn: () => api.get<{ items: Site[] }>("/api/sites") });
   const check = useMutation({
     mutationFn: (body: { workerId: string; siteId?: string; from: string; to: string }) => api.post<EligibilityResult>("/api/compliance/check", body),
@@ -501,7 +501,7 @@ function EligibilityCheck({ workerId }: { workerId: string }) {
           </Button>
         </form>
         <FieldErrors error={check.error} />
-        {check.data && <EligibilityResultView result={check.data} workerId={workerId} isOps={account?.role === "ops_manager"} />}
+        {check.data && <EligibilityResultView result={check.data} workerId={workerId} isOps={hasRole("ops_manager")} />}
       </CardContent>
     </Card>
   );

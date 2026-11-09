@@ -33,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>
           <TooltipProvider delayDuration={200}>
-            <SessionProvider>
+            <SessionProvider fallback={<PageSkeleton />}>
               <HashRouter>
                 <Suspense fallback={<PageSkeleton />}>
                   <Routes>

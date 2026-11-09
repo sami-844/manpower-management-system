@@ -26,26 +26,30 @@ const worker = {
 const sites = { items: [{ id: "22222222-2222-4222-8222-222222222222", code: "SOH-PORT", name: "Sohar Port Phase 3", clientName: "Gulf Build LLC" }] };
 
 let calls: { url: string; init?: RequestInit }[];
+const hrOfficer = { id: "u1", username: "hr.officer", displayName: "Test Officer" };
 
 beforeEach(() => {
   calls = [];
-  // Signed in as the HR officer: verifying documents is an HR action.
-  localStorage.setItem("mms.user", "hr.officer");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      const body = url.endsWith("/api/sites")
-        ? sites
-        : url.endsWith("/compliance/check")
-          ? {
-              eligible: false,
-              blockers: [{ code: "DOCUMENT_EXPIRED", documentType: "residence_visa", message: "Residence visa expired on 2026-09-04" }],
-              warnings: [{ code: "DOCUMENT_UNVERIFIED", documentType: "medical", message: "Medical fitness not yet verified by HR" }],
-            }
-          : url.includes("/verify")
-            ? { ...worker.documents[1], verified: true }
-            : worker;
+      // Signed in as the HR officer (session restored from the refresh cookie): verifying documents is an HR action.
+      const body = url.endsWith("/api/auth/refresh")
+        ? { accessToken: "t1", expiresIn: 900, user: hrOfficer, next: null }
+        : url.endsWith("/api/auth/me")
+          ? { user: hrOfficer, entityId: "e1", entityChoices: [], roles: ["hr_pro"], permissions: [], next: null }
+          : url.endsWith("/api/sites")
+            ? sites
+            : url.endsWith("/compliance/check")
+              ? {
+                  eligible: false,
+                  blockers: [{ code: "DOCUMENT_EXPIRED", documentType: "residence_visa", message: "Residence visa expired on 2026-09-04" }],
+                  warnings: [{ code: "DOCUMENT_UNVERIFIED", documentType: "medical", message: "Medical fitness not yet verified by HR" }],
+                }
+              : url.includes("/verify")
+                ? { ...worker.documents[1], verified: true }
+                : worker;
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     }),
   );

@@ -225,7 +225,7 @@ function VersionMeta({ card, contractId, inForce }: { card: RateCardView; contra
 /** Four-eyes: the maker of a version can never approve it; only owner or finance approve. */
 function ApproveButton({ card, contractId }: { card: RateCardView; contractId: string }) {
   const qc = useQueryClient();
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const approve = useMutation({
     mutationFn: () => approveRateCard({ contractId, cardId: card.id, by: account?.username ?? "" }),
     onSuccess: () => {
@@ -236,7 +236,7 @@ function ApproveButton({ card, contractId }: { card: RateCardView; contractId: s
   });
 
   const isMaker = account?.username === card.requestedBy;
-  const mayApprove = !!account && (RATE_APPROVER_ROLES as readonly string[]).includes(account.role);
+  const mayApprove = hasRole(...RATE_APPROVER_ROLES);
   const blocked = isMaker
     ? `Needs a second approver. You created this version, so someone else must approve it: sign in as the owner or finance.`
     : !mayApprove

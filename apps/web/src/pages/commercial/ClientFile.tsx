@@ -419,8 +419,8 @@ const MONEY_RE = /^\d{1,9}(\.\d{1,3})?$/;
 
 function EditClient({ client }: { client: ClientRow }) {
   const qc = useQueryClient();
-  const { account } = useSession();
-  const canCredit = account?.role === "owner" || account?.role === "finance";
+  const { account, hasRole } = useSession();
+  const canCredit = hasRole("owner", "finance");
   const [open, setOpen] = useState(false);
   const [city, setCity] = useState(client.city);
   const [terms, setTerms] = useState(String(client.paymentTermsDays));

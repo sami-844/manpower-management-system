@@ -210,7 +210,7 @@ export function WhyDisabled({ reason, children }: { reason: string | null; child
 const APPROVE_LABEL: Record<ApprovalLevel, string> = { payroll: "Send for approval", finance: "Approve as finance", owner: "Approve as owner" };
 
 function RunActions({ run, blocking }: { run: PayrollRun; blocking: number }) {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const approveM = usePayrollAction(actions.approve);
   const releaseM = usePayrollAction(actions.release);
   if (run.status === "released") {
@@ -225,7 +225,7 @@ function RunActions({ run, blocking }: { run: PayrollRun; blocking: number }) {
   if (run.status === "draft") return null;
   const level = nextLevel(run.approvals, run.levels);
   const block = level ? (approvalBlock(account, level, run.calculatedBy, run.approvals) ?? (level === "payroll" && blocking ? `Clear ${blocking} blockers first` : null)) : null;
-  const canRelease = account?.role === "payroll" || account?.role === "finance";
+  const canRelease = hasRole("payroll", "finance");
   const releaseBlock = run.status !== "approved" ? "Needs every approval first" : blocking ? `Clear ${blocking} blockers first` : !canRelease ? "Payroll or finance releases the run" : null;
   return (
     <>
@@ -336,9 +336,9 @@ function PayslipsTab({ payslips, variances, leavers }: { payslips: Payslip[]; va
 // --- Blockers -------------------------------------------------------------
 
 function BlockersTab({ run, blockers }: { run: PayrollRun; blockers: Blocker[] }) {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const fix = usePayrollAction(actions.resolveBlockers);
-  const canFix = account?.role === "payroll" && run.status !== "released";
+  const canFix = hasRole("payroll") && run.status !== "released";
   const why = run.status === "released" ? "The run is locked" : "Only the payroll officer recalculates";
   const recalc = (ids: string[]) => fix.mutate({ runId: run.id, ids, account });
 

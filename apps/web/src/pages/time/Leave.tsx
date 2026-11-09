@@ -49,16 +49,17 @@ const bcol = createColumns<LeaveBalance>();
 /** Who may give each approval (App Flow: operations, then HR). The owner can stand in for either. */
 const STEP_ROLES: Record<"pending_ops" | "pending_hr", V1Role[]> = { pending_ops: ["ops_manager", "owner"], pending_hr: ["hr_pro", "owner"] };
 
-function blockReason(l: LeaveRequest, me: string, role: V1Role | undefined): string | null {
+function blockReason(l: LeaveRequest, me: string, roles: readonly V1Role[]): string | null {
   if (l.status !== "pending_ops" && l.status !== "pending_hr") return null;
-  if (!role || !STEP_ROLES[l.status].includes(role)) return l.status === "pending_ops" ? "Operations approve first: they check the roster gap." : "HR gives the second approval: they check the balance and travel.";
+  const step = STEP_ROLES[l.status];
+  if (!roles.some((r) => step.includes(r))) return l.status === "pending_ops" ? "Operations approve first: they check the roster gap." : "HR gives the second approval: they check the balance and travel.";
   if (l.requestedBy === me) return "You raised this request. Someone else must approve it (four eyes).";
   if (l.status === "pending_hr" && l.opsBy === me) return "You gave the operations approval. HR approval must come from another person (four eyes).";
   return null;
 }
 
 export function Leave() {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const me = account?.username ?? "";
   const qc = useQueryClient();
   const q = useTimeQuery(["leave"], getLeaveRequests);
@@ -164,7 +165,7 @@ export function Leave() {
       cell: ({ row }) => {
         const r = row.original;
         if (r.status !== "pending_ops" && r.status !== "pending_hr") return null;
-        const why = blockReason(r, me, account?.role);
+        const why = blockReason(r, me, account?.roles ?? []);
         const buttons = (
           <div className="flex justify-end gap-1">
             <Button size="xs" variant="ghost" disabled={!!why || decide.isPending} onClick={() => decide.mutate({ l: r, approve: false })} aria-label={`Reject leave for ${r.workerName}`} title="Reject">

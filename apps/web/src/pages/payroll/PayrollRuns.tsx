@@ -62,10 +62,10 @@ const STEP_MS = 420;
 
 /** Calculate (or recalculate) a run: the multi-step loader, then the run moves to Calculated. */
 export function CalculateRun({ run, label, variant = "default" }: { run: PayrollRun; label?: string; variant?: "default" | "outline" }) {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const calc = usePayrollAction(actions.calculate);
   const [busy, setBusy] = useState(false);
-  const allowed = account?.role === "payroll";
+  const allowed = hasRole("payroll");
   const start = () => {
     setBusy(true);
     window.setTimeout(() => {

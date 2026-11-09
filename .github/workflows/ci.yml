@@ -72,7 +72,7 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: cd apps/web && bunx playwright install --with-deps chromium
-      - run: bun run db:migrate && bun run db:seed
+      - run: bun run db:migrate && bun run db:seed && bun run --filter @mms/api e2e:accounts
       - run: cd apps/api && bun src/main.ts &
       - run: bunx wait-on http://localhost:3000/api/health
       - run: bun run --filter @mms/web test:e2e

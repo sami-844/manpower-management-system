@@ -66,8 +66,8 @@ interface Draft {
 }
 
 export function Overrides() {
-  const { account } = useSession();
-  const isOps = account?.role === "ops_manager";
+  const { account, hasRole } = useSession();
+  const isOps = hasRole("ops_manager");
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<OverrideState | "all">("active");
   const [draft, setDraft] = useState<Draft | null>(null);

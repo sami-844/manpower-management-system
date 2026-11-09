@@ -13,7 +13,8 @@
     "db:migrate": "bun src/db/migrate.ts",
     "db:seed": "bun src/db/seed.ts",
     "auth:bootstrap-admin": "bun src/auth/accounts.ts bootstrap-admin",
-    "db:seed-users": "bun src/auth/accounts.ts seed-users"
+    "db:seed-users": "bun src/auth/accounts.ts seed-users",
+    "e2e:accounts": "bun test/e2e-accounts.ts"
   },
   "dependencies": {
     "@mms/core": "workspace:*",

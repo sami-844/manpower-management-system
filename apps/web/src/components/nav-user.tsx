@@ -28,6 +28,8 @@ export const initials = (name: string) =>
     .map((p) => p[0]!.toUpperCase())
     .join("");
 
+const DEMO = import.meta.env.MODE === "demo";
+
 export function NavUser() {
   const { isMobile } = useSidebar();
   const { account, signIn, signOut } = useSession();
@@ -46,7 +48,7 @@ export function NavUser() {
               </Avatar>
               <span className="grid flex-1 text-start text-sm leading-tight">
                 <span className="truncate font-medium">{account.displayName}</span>
-                <span className="truncate text-xs text-muted-foreground">{ROLE_LABELS[account.role]}</span>
+                <span className="truncate text-xs text-muted-foreground">{account.roles.map((r) => ROLE_LABELS[r]).join(", ")}</span>
               </span>
               <ChevronsUpDownIcon className="ms-auto size-4" />
             </SidebarMenuButton>
@@ -55,7 +57,7 @@ export function NavUser() {
             <DropdownMenuLabel className="font-normal">
               <div className="grid text-sm leading-tight">
                 <span className="font-medium">{account.displayName}</span>
-                <span className="text-xs text-muted-foreground">{account.email}</span>
+                <span className="text-xs text-muted-foreground">{account.email || account.username}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -64,33 +66,35 @@ export function NavUser() {
                 <BellIcon />
                 Notifications
               </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <UserRoundCogIcon />
-                  Switch role (demo)
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="min-w-56">
-                  <DropdownMenuRadioGroup
-                    value={account.username}
-                    onValueChange={(u) => {
-                      const next = DEMO_ACCOUNTS.find((a) => a.username === u);
-                      if (next) {
-                        signIn(next);
-                        navigate(next.role === "owner" ? "/dashboard" : "/");
-                      }
-                    }}
-                  >
-                    {DEMO_ACCOUNTS.map((a) => (
-                      <DropdownMenuRadioItem key={a.username} value={a.username}>
-                        <span className="grid leading-tight">
-                          <span>{ROLE_LABELS[a.role]}</span>
-                          <span className="text-xs text-muted-foreground">{a.displayName}</span>
-                        </span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              {DEMO && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <UserRoundCogIcon />
+                    Switch role (demo)
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="min-w-56">
+                    <DropdownMenuRadioGroup
+                      value={account.username}
+                      onValueChange={(u) => {
+                        const next = DEMO_ACCOUNTS.find((a) => a.username === u);
+                        if (next) {
+                          signIn(next);
+                          navigate(next.role === "owner" ? "/dashboard" : "/");
+                        }
+                      }}
+                    >
+                      {DEMO_ACCOUNTS.map((a) => (
+                        <DropdownMenuRadioItem key={a.username} value={a.username}>
+                          <span className="grid leading-tight">
+                            <span>{ROLE_LABELS[a.role]}</span>
+                            <span className="text-xs text-muted-foreground">{a.displayName}</span>
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   {theme === "dark" ? <MoonIcon /> : theme === "light" ? <SunIcon /> : <MonitorIcon />}
@@ -107,10 +111,7 @@ export function NavUser() {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => {
-                signOut();
-                navigate("/sign-in");
-              }}
+              onSelect={() => void signOut().then(() => navigate("/sign-in"))}
             >
               <LogOutIcon />
               Sign out

@@ -68,13 +68,13 @@ const ready = (s: Scan) => s.status === "draft" && !!s.workerId && !!s.expiryDat
 
 export function DocumentUpload() {
   const qc = useQueryClient();
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const workforce = useWorkforce();
   const [scans, setScans] = useState<Scan[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const urls = useRef(new Set<string>());
-  const canVerify = account?.role === "hr_pro" || account?.role === "admin";
+  const canVerify = hasRole("hr_pro", "admin");
 
   useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), []);
 

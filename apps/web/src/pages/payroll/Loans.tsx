@@ -232,7 +232,7 @@ function LoanDetail({ loan }: { loan: LoanView }) {
 const AMOUNT = /^\d{1,5}(\.\d{1,3})?$/;
 
 function NewAdvanceDialog({ workers }: { workers: WorkerListItem[] }) {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const create = usePayrollAction(actions.createLoan);
   const approvers = DEMO_ACCOUNTS.filter((a) => (a.role === "finance" || a.role === "owner") && a.username !== account?.username);
   const [open, setOpen] = useState(false);
@@ -257,7 +257,7 @@ function NewAdvanceDialog({ workers }: { workers: WorkerListItem[] }) {
   const instalment = amountOk ? money.str(omr(amount.trim()).div(count)) : null;
   const cap = worker ? money.times(basicWage(worker), RULES.deductionCap.params.shareOfBasic!) : null;
   const overCap = instalment && cap ? omr(instalment).gt(omr(cap)) : false;
-  const canRequest = account?.role === "payroll" || account?.role === "hr_pro";
+  const canRequest = hasRole("payroll", "hr_pro");
 
   const reset = () => {
     setCode("");

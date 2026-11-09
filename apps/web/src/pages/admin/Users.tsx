@@ -3,7 +3,8 @@
  * `user_roles` with site/client scope). Version 1 issues accounts for the six office roles;
  * supervisor, client and worker roles exist but get no accounts until Version 2 (CLAUDE.md).
  * The permission matrix is built from ROLE_AREAS, the same table that filters the sidebar.
- * DEMO: src/demo/admin.ts until `/users` and `/roles` exist.
+ * Live builds list and manage users through `/api/admin/users` (users-live.tsx); the hosted demo
+ * keeps the fictional list in src/demo/admin.ts.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +29,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { CreateUserDialog, LiveUsersTable, useAdminUsers } from "./users-live";
+
+const LIVE = import.meta.env.MODE !== "demo";
 
 const AREA_LABELS: Record<Area, string> = {
   today: "Today and notifications",
@@ -54,35 +58,48 @@ const initials = (name: string) =>
     .join("");
 
 export function Users() {
-  const users = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers });
-  const count = (r: Role) => users.data?.filter((u) => u.role === r && u.status !== "suspended").length ?? 0;
+  const users = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers, enabled: !LIVE });
+  const live = useAdminUsers(LIVE);
+  const count = (r: Role) =>
+    (LIVE
+      ? live.data?.filter((u) => u.status === "active" && u.roles.some((x) => x.role === r)).length
+      : users.data?.filter((u) => u.role === r && u.status !== "suspended").length) ?? 0;
+  const total = LIVE ? live.data?.length : users.data?.length;
 
   return (
     <Page>
       <PageHeader
         screen="S-36"
         title="Users and roles"
-        sample
-        description="Who can sign in, what each role can see, and which sites or clients they are limited to. Sign-in and MFA come from Amazon Cognito."
-        actions={<InviteDialog />}
+        sample={!LIVE}
+        description={
+          LIVE
+            ? "Who can sign in and what each role can see. Everyone signs in with a password and an authenticator app."
+            : "Who can sign in, what each role can see, and which sites or clients they are limited to. Sign-in and MFA come from Amazon Cognito."
+        }
+        actions={LIVE ? <CreateUserDialog /> : <InviteDialog />}
       />
       <Tabs defaultValue="users" className="gap-4">
         <TabsList>
-          <TabsTrigger value="users">Users{users.data ? ` (${users.data.length})` : ""}</TabsTrigger>
+          <TabsTrigger value="users">Users{total !== undefined ? ` (${total})` : ""}</TabsTrigger>
           <TabsTrigger value="roles">Roles and permissions ({ROLES.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
-          <DataTable
-            label="Users"
-            columns={userColumns}
-            data={users.data}
-            loading={users.isPending}
-            getRowId={(u) => u.id}
-            search={(u, q) => u.displayName.toLowerCase().includes(q) || u.email.includes(q) || ROLE_LABELS[u.role].toLowerCase().includes(q)}
-            searchPlaceholder="Filter by name, email or role…"
-            empty="No users yet. Invite the first office user."
-          />
+          {LIVE ? (
+            <LiveUsersTable users={live.data} loading={live.isPending} />
+          ) : (
+            <DataTable
+              label="Users"
+              columns={userColumns}
+              data={users.data}
+              loading={users.isPending}
+              getRowId={(u) => u.id}
+              search={(u, q) => u.displayName.toLowerCase().includes(q) || u.email.includes(q) || ROLE_LABELS[u.role].toLowerCase().includes(q)}
+              searchPlaceholder="Filter by name, email or role…"
+              empty="No users yet. Invite the first office user."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="roles" className="space-y-4">

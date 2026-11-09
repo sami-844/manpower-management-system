@@ -1,6 +1,6 @@
 /**
  * Office app shell: sidebar + inset content (Design Brief "Layouts"), from the dashboard-01 block.
- * Signed-out visitors go to S-01; areas the role cannot use show a plain "no access" page.
+ * Signed-out visitors, and users who still owe a first-sign-in step, go to S-01; areas the role cannot use show a plain "no access" page.
  */
 import { Suspense, type CSSProperties } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
@@ -39,7 +39,7 @@ function NoAccess() {
         </EmptyMedia>
         <EmptyTitle>This area isn't part of your role</EmptyTitle>
         <EmptyDescription>
-          {account ? `${ROLE_LABELS[account.role]} accounts` : "Your account"} can't open this screen. Ask the system admin if you need access.
+          {account ? `${account.roles.map((r) => ROLE_LABELS[r]).join(" and ")} accounts` : "Your account"} can't open this screen. Ask the system admin if you need access.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
@@ -52,10 +52,11 @@ function NoAccess() {
 }
 
 export function AppShell() {
-  const { account, can } = useSession();
+  const { account, next, can } = useSession();
   const location = useLocation();
   const screen = useCurrentScreen();
-  if (!account) return <Navigate to="/sign-in" replace state={{ from: location.pathname }} />;
+  // Signed out, or a first-sign-in step (new password, two-factor) still owed: S-01 handles both.
+  if (!account || next) return <Navigate to="/sign-in" replace state={{ from: location.pathname }} />;
   const allowed = !screen || can(screen.area);
 
   return (

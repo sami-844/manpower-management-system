@@ -1,6 +1,6 @@
 /**
- * Stand-in for sign-in until Amazon Cognito is wired up (Spec §2, S2).
- * Every change the API records is attributed to the signed-in username (`x-user`).
+ * Hosted demo only (`--mode demo`): the picked demo account, which the in-browser stand-in API
+ * records as the actor. Live builds sign in for real (session.tsx) and never send this name.
  */
 import { DEMO_ACCOUNTS, type DemoAccount } from "./roles";
 

@@ -198,7 +198,7 @@ function CheckRow({ item, disabled, onToggle }: { item: ChecklistItem; disabled:
 const APPROVE_LABEL: Record<ApprovalLevel, string> = { payroll: "Prepare and send to finance", finance: "Approve as finance", owner: "Approve as owner" };
 
 function Statement({ exit: e }: { exit: ExitView }) {
-  const { account } = useSession();
+  const { account, hasRole } = useSession();
   const approve = usePayrollAction(actions.approveSettlement);
   const close = usePayrollAction(actions.closeExit);
   const [rehire, setRehire] = useState("yes");
@@ -207,7 +207,7 @@ function Statement({ exit: e }: { exit: ExitView }) {
   const frozen = e.status === "frozen";
   const why = frozen ? "Pay is frozen while the absconding case is open" : level ? approvalBlock(account, level, e.preparedBy, e.approvals) : null;
   const openItems = e.checklist.filter((c) => !c.done).length;
-  const closeWhy = account?.role !== "hr_pro" && account?.role !== "payroll" ? "HR or payroll closes the exit" : openItems ? `${openItems} checklist items still open` : null;
+  const closeWhy = !hasRole("hr_pro", "payroll") ? "HR or payroll closes the exit" : openItems ? `${openItems} checklist items still open` : null;
 
   return (
     <article aria-label={`Final settlement statement for ${e.workerName}`} className="flex flex-col gap-5 rounded-xl border bg-card p-5 shadow-xs sm:p-6 print:border-0 print:p-0 print:shadow-none">

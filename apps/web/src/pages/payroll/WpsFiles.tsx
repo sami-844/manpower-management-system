@@ -35,7 +35,7 @@ import {
   type WpsResponse,
 } from "@/demo/payroll";
 import type { DemoAccount } from "@/lib/roles";
-import { useSession } from "@/lib/session";
+import { useSession, type Account } from "@/lib/session";
 import { money } from "@/demo/core";
 import { displayMoment, WhyDisabled } from "./PayrollReview";
 import { KIND_LABEL } from "./PayrollRuns";
@@ -54,8 +54,8 @@ function useWpsJob() {
   return { run, busy: busy || gen.isPending, loader: <MultiStepLoader loadingStates={WPS_STEPS} loading={busy} duration={STEP_MS} loop={false} /> };
 }
 
-function canGenerate(account: DemoAccount | null) {
-  return account?.role === "payroll" || account?.role === "finance" ? null : "Payroll or finance generates WPS files";
+function canGenerate(account: Account | null) {
+  return account?.roles.some((r) => r === "payroll" || r === "finance") ? null : "Payroll or finance generates WPS files";
 }
 
 function download(f: WpsFile) {
@@ -259,7 +259,7 @@ export function WpsFiles() {
 
 const sumAmounts = (rows: { amount: string }[]) => money.sum(rows.map((r) => r.amount));
 
-function GenerateDialog({ eligible, job, account }: { eligible: PayrollRun[]; job: ReturnType<typeof useWpsJob>; account: DemoAccount | null }) {
+function GenerateDialog({ eligible, job, account }: { eligible: PayrollRun[]; job: ReturnType<typeof useWpsJob>; account: Account | null }) {
   const [runId, setRunId] = useState<string>("");
   const [openState, setOpen] = useState(false);
   const run = eligible.find((r) => r.id === runId) ?? eligible[0];
@@ -327,7 +327,7 @@ function GenerateDialog({ eligible, job, account }: { eligible: PayrollRun[]; jo
   );
 }
 
-function FixRejectedDialog({ fileId, rows, runId, job, account }: { fileId: string; rows: WpsResponse[]; runId: string; job: ReturnType<typeof useWpsJob>; account: DemoAccount | null }) {
+function FixRejectedDialog({ fileId, rows, runId, job, account }: { fileId: string; rows: WpsResponse[]; runId: string; job: ReturnType<typeof useWpsJob>; account: Account | null }) {
   const [openState, setOpen] = useState(false);
   const total = sumAmounts(rows);
   const why = canGenerate(account);
