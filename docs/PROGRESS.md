@@ -79,7 +79,8 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - **Decided with Sami:** public repository (A19; the button needs one; Sami accepted that the spec and history become public); fast-forward `main` to the demo.
 - **Built:** browser stand-in for the API in the demo build; `wrangler.jsonc` (static assets), root `build:demo` and `deploy` scripts, `wrangler` 4.158.0 pinned; "Hosted demo" badge in the header; README section; CLAUDE.md file map; GitHub CLI installed.
 - **Verified:** gates green; typecheck clean; core 94, API 29, web 45; Playwright 6/6 against the demo build with the API URL pointed at a dead port; all 40 web screens open with no console errors; `wrangler deploy --dry-run` reads 106 assets; the normal build contains none of the stand-in.
-- **Next:** CI runs on the first push; watch it. S2 as planned.
+- **Pushed:** https://github.com/sami-844/manpower-management-system (public, default `main`). First CI run failed in the Windows desktop job: the runner's CRLF conversion corrupted the ASCII-only `test-page.pdf` (the shipped test page too). Fixed with `.gitattributes` (`*.pdf binary`); CI green on all 4 jobs (tests, e2e, API image, Windows installer).
+- **Next:** Sami clicks the README button to deploy the demo on his Cloudflare account; S2 as planned.
 
 **2026-11-09 (3) — Version 1 demo foundation. Branch `feat/v1-demo-foundation`, not pushed (no remote, D10).**
 
