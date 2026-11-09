@@ -43,7 +43,7 @@ user menu. Ctrl+K searches workers, clients, sites and screens.
 
 ### Hosted demo on Cloudflare
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/GITHUB_OWNER/manpower-management-system)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sami-844/manpower-management-system)
 
 The button copies this repository into your GitHub account and deploys the demo to Cloudflare
 Workers on a free account. No database or settings are needed. Keep the suggested commands:
