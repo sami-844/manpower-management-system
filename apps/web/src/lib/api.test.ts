@@ -161,6 +161,24 @@ describe("session client", () => {
     expect(seen).toHaveBeenLastCalledWith(null);
   });
 
+  it("does not restore a session whose sign-out the server never confirmed, and finishes the sign-out", async () => {
+    route({
+      "/api/auth/login": [() => json(200, grant("t1"))],
+      "/api/auth/logout": [() => Promise.reject(new TypeError("offline")), () => new Response(null, { status: 204 })],
+      "/api/auth/refresh": [() => json(200, grant("t2"))],
+    });
+    await mod.login({ username: "hr.officer", password: "x" });
+    expect(await mod.logout()).toBe(false);
+
+    // Next start (same browser): no restore from the cookie; the sign-out is retried instead.
+    expect(await mod.restoreSession()).toBeNull();
+    expect(callsTo("/api/auth/refresh")).toHaveLength(0);
+    expect(callsTo("/api/auth/logout")).toHaveLength(2);
+
+    // Confirmed now: the start after that restores normally again.
+    expect(await mod.restoreSession()).toMatchObject({ accessToken: "t2" });
+  });
+
   it("puts the server's error code and extra fields on ApiError", async () => {
     route({ "/api/auth/login": [() => json(423, { code: "ACCOUNT_LOCKED", message: "Locked.", retryAfterSeconds: 540 })] });
     const err = await mod.login({ username: "hr.officer", password: "x" }).catch((e: unknown) => e);

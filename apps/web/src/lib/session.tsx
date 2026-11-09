@@ -5,7 +5,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, login, logout, onSessionChange, refreshSession, type AuthGrant, type AuthUser, type NextStep } from "./api";
+import { api, login, logout, onSessionChange, restoreSession, type AuthGrant, type AuthUser, type NextStep } from "./api";
 import { canSee, V1_ROLES, type Area, type DemoAccount, type V1Role } from "./roles";
 import { currentAccount, setCurrentUser } from "./user";
 
@@ -94,7 +94,7 @@ export function SessionProvider({ children, fallback = null }: { children: React
     const off = onSessionChange((grant) => {
       loading.current = apply(grant);
     });
-    refreshSession().catch(() =>
+    restoreSession().catch(() =>
       setState((s) => (s.ready ? s : { ...s, ready: true, notice: "We couldn't reach the server. Check your connection and try again." })),
     );
     return off;

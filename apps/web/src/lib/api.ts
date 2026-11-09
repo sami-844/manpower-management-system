@@ -107,21 +107,58 @@ export function refreshSession(): Promise<AuthGrant | null> {
   return renewing;
 }
 
+/**
+ * Set when a sign-out could not be confirmed by the server (offline, server fault). While set, the
+ * app does not restore the session from the refresh cookie on start: it retries the sign-out
+ * instead, so on a shared office PC the next person never finds the last one still signed in.
+ * Not a secret: it only says "someone signed out here".
+ */
+const PENDING_SIGN_OUT = "mms.pendingSignOut";
+
+function pendingSignOut(value?: boolean): boolean {
+  try {
+    if (value === true) localStorage.setItem(PENDING_SIGN_OUT, "1");
+    if (value === false) localStorage.removeItem(PENDING_SIGN_OUT);
+    return localStorage.getItem(PENDING_SIGN_OUT) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** POST /api/auth/login. A right password with two-factor on answers 401 `OTP_REQUIRED`: re-send with `otp`. */
 export async function login(input: { username: string; password: string; otp?: string }): Promise<AuthGrant> {
   const grant = await toResult<AuthGrant>(await send("POST", "/api/auth/login", input));
+  pendingSignOut(false);
   adopt(grant);
   return grant;
 }
 
-/** Ends the session on the server (bearer and cookie), then forgets the token whatever the answer. */
-export async function logout(): Promise<void> {
+/**
+ * Ends the session on the server (bearer and cookie) and forgets the token. Returns whether the
+ * server confirmed it; if not, the sign-out stays pending (see PENDING_SIGN_OUT) until it does.
+ */
+export async function logout(): Promise<boolean> {
+  let confirmed = false;
   try {
-    await send("POST", "/api/auth/logout");
+    confirmed = (await send("POST", "/api/auth/logout")).ok;
   } catch {
-    /* offline: the token is dropped below and the cookie expires on its own */
+    confirmed = false;
   }
+  pendingSignOut(!confirmed);
   adopt(null);
+  return confirmed;
+}
+
+/**
+ * On app start: restore the session from the refresh cookie, unless a sign-out is still pending,
+ * in which case finish the sign-out first and stay signed out.
+ */
+export async function restoreSession(): Promise<AuthGrant | null> {
+  if (pendingSignOut()) {
+    await logout();
+    return null;
+  }
+  return refreshSession();
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {

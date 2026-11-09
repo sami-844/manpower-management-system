@@ -61,8 +61,11 @@ export class AuthController {
   @Post("logout")
   @HttpCode(204)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    await this.auth.signOut(bearerToken(req), readCookie(req, REFRESH_COOKIE));
-    this.clear(res);
+    try {
+      await this.auth.signOut(bearerToken(req), readCookie(req, REFRESH_COOKIE));
+    } finally {
+      this.clear(res);
+    }
   }
 
   @SignedIn()
