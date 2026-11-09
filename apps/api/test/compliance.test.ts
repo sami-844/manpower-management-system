@@ -28,7 +28,7 @@ describe("POST /api/compliance/check", () => {
   it("applies the site's extra document requirements", async () => {
     const w = await createWorker(ctx);
     const site = await ctx
-      .api()
+      .api("ops.manager")
       .post("/api/sites")
       .send({ code: "SOH-PORT", name: "Sohar Port Phase 3", clientName: "Gulf Build LLC", requiredDocuments: ["trade_certificate"] });
     expect(site.status).toBe(201);
@@ -48,9 +48,8 @@ describe("POST /api/compliance/check", () => {
   it("honours a recorded override with approver and reason", async () => {
     const w = await createWorker(ctx, {}, validDocs("2026-10-31"));
     const o = await ctx
-      .api()
+      .api("ops.manager")
       .post(`/api/workers/${w.id}/overrides`)
-      .set("x-user", "ops.manager")
       .send({ code: "DOCUMENT_EXPIRED", documentType: "passport", validUntil: "2026-11-30", reason: "Renewal at embassy" });
     expect(o.status).toBe(201);
     expect(o.body.approvedBy).toBe("ops.manager");
@@ -63,9 +62,8 @@ describe("POST /api/compliance/check", () => {
   it("refuses an override without a reason", async () => {
     const w = await createWorker(ctx);
     const res = await ctx
-      .api()
+      .api("ops.manager")
       .post(`/api/workers/${w.id}/overrides`)
-      .set("x-user", "ops.manager")
       .send({ code: "DOCUMENT_EXPIRED", validUntil: "2026-11-30", reason: "" });
     expect(res.status).toBe(400);
   });
@@ -73,7 +71,7 @@ describe("POST /api/compliance/check", () => {
   it("refuses an override from an anonymous user", async () => {
     const w = await createWorker(ctx);
     const res = await ctx
-      .api()
+      .api(null)
       .post(`/api/workers/${w.id}/overrides`)
       .send({ code: "DOCUMENT_EXPIRED", validUntil: "2026-11-30", reason: "x" });
     expect(res.status).toBe(401);

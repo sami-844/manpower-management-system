@@ -1,12 +1,15 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   check,
   date,
   index,
+  integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -24,7 +27,12 @@ const timestamps = {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 };
 
-const entityId = text("entity_id").notNull().default("OM-01");
+// Inside a signed-in request the row belongs to that request's entity (set by the request scope),
+// which is also what the row-level security policy checks. Unscoped scripts (seed) fall back to OM-01.
+// nullif: a pooled connection that once held the setting reports '' afterwards, not NULL.
+const entityId = text("entity_id")
+  .notNull()
+  .default(sql`coalesce(nullif(current_setting('app.entity_id', true), ''), 'OM-01')`);
 
 export const workers = pgTable(
   "workers",
@@ -137,3 +145,126 @@ export const auditEvents = pgTable("audit_events", {
   prevHash: text("prev_hash").notNull(),
   hash: text("hash").notNull(),
 });
+
+// ---------------------------------------------------------------------------------------------
+// Identity and access (A25, TR-SEC-01 to 07, 11). Platform tables: no entity_id on users (a
+// person may hold roles in several entities); the entity lives on user_roles.
+// ---------------------------------------------------------------------------------------------
+
+const moment = (name: string) => timestamp(name, { withTimezone: true });
+const uuidV7 = () => uuid("id").primaryKey().$defaultFn(() => Bun.randomUUIDv7());
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuidV7(),
+    username: text("username").notNull(),
+    displayName: text("display_name").notNull(),
+    email: text("email"),
+    passwordHash: text("password_hash").notNull(),
+    isPasswordChangeRequired: boolean("is_password_change_required").notNull().default(true),
+    passwordChangedAt: moment("password_changed_at"),
+    status: text("status").notNull().default("active"),
+    failedSignIns: integer("failed_sign_ins").notNull().default(0),
+    lockedUntil: moment("locked_until"),
+    totpSecretSealed: text("totp_secret_sealed"),
+    totpPendingSealed: text("totp_pending_sealed"),
+    totpLastStep: bigint("totp_last_step", { mode: "number" }),
+    lastSignInAt: moment("last_sign_in_at"),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [
+    uniqueIndex("users_username_uq").on(sql`lower(${t.username})`),
+    check("users_status_ck", sql`${t.status} in ('active','disabled')`),
+    check("users_username_ck", sql`${t.username} ~ '^[a-z0-9][a-z0-9._-]{2,49}$'`),
+    check("users_failed_sign_ins_ck", sql`${t.failedSignIns} >= 0`),
+  ],
+);
+
+export const roles = pgTable("roles", {
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+});
+
+export const permissions = pgTable("permissions", {
+  key: text("key").primaryKey(),
+  description: text("description").notNull(),
+});
+
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    roleKey: text("role_key").notNull().references(() => roles.key, { onDelete: "restrict" }),
+    permissionKey: text("permission_key").notNull().references(() => permissions.key, { onDelete: "restrict" }),
+  },
+  (t) => [primaryKey({ columns: [t.roleKey, t.permissionKey] })],
+);
+
+export const userRoles = pgTable(
+  "user_roles",
+  {
+    id: uuidV7(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    roleKey: text("role_key").notNull().references(() => roles.key, { onDelete: "restrict" }),
+    entityId: text("entity_id").notNull(),
+    siteId: uuid("site_id"),
+    clientId: uuid("client_id"),
+    validFrom: date("valid_from", { mode: "string" }).notNull(),
+    validTo: date("valid_to", { mode: "string" }),
+    createdAt: moment("created_at").notNull().defaultNow(),
+    createdBy: text("created_by").notNull(),
+    // A role ended the same day it started cannot be date-ended (valid_to >= valid_from), so it is revoked.
+    revokedAt: moment("revoked_at"),
+    revokedBy: text("revoked_by"),
+  },
+  (t) => [
+    index("user_roles_user_idx").on(t.userId),
+    check("user_roles_dates_ck", sql`${t.validTo} is null or ${t.validTo} >= ${t.validFrom}`),
+  ],
+);
+
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    refreshHash: text("refresh_hash").notNull(),
+    previousRefreshHash: text("previous_refresh_hash"),
+    previousValidUntil: moment("previous_valid_until"),
+    createdAt: moment("created_at").notNull(),
+    lastSeenAt: moment("last_seen_at").notNull(),
+    expiresAt: moment("expires_at").notNull(),
+    revokedAt: moment("revoked_at"),
+    revokeReason: text("revoke_reason"),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+  },
+  (t) => [index("user_sessions_user_idx").on(t.userId)],
+);
+
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    username: text("username").notNull(),
+    userId: uuid("user_id"),
+    ip: text("ip"),
+    isSuccess: boolean("is_success").notNull(),
+    reason: text("reason").notNull(),
+    at: moment("at").notNull(),
+  },
+  (t) => [index("login_attempts_ip_idx").on(t.ip, t.at), index("login_attempts_username_idx").on(t.username, t.at)],
+);
+
+export const passwordHistory = pgTable(
+  "password_history",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: moment("created_at").notNull(),
+  },
+  (t) => [index("password_history_user_idx").on(t.userId, t.createdAt)],
+);

@@ -14,7 +14,8 @@
     "dev:api": "bun run --filter @mms/api dev",
     "dev:web": "bun run --filter @mms/web dev",
     "db:migrate": "bun run --filter @mms/api db:migrate",
-    "db:seed": "bun run --filter @mms/api db:seed"
+    "db:seed": "bun run --filter @mms/api db:seed",
+    "db:seed-users": "bun run --filter @mms/api db:seed-users"
   },
   "engines": {
     "bun": ">=1.4.0"

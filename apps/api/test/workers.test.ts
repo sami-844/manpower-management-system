@@ -11,9 +11,8 @@ beforeEach(async () => ctx.reset());
 describe("POST /api/workers", () => {
   it("creates a worker with a human-readable code and status available", async () => {
     const res = await ctx
-      .api()
+      .api("hr.officer")
       .post("/api/workers")
-      .set("x-user", "hr.officer")
       .send({ fullName: "Rahim Uddin", nationality: "Bangladesh", trade: "Steel fixer", phone: "+96890000001" });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ fullName: "Rahim Uddin", status: "available", trade: "Steel fixer" });
@@ -113,7 +112,7 @@ describe("POST /api/workers/:id/documents", () => {
     const w = await createWorker(ctx, {}, []);
     const doc = await ctx.api().post(`/api/workers/${w.id}/documents`).send({ type: "medical", expiryDate: "2027-01-01" });
     expect(doc.body.verified).toBe(false);
-    const res = await ctx.api().patch(`/api/documents/${doc.body.id}/verify`).set("x-user", "hr.lead");
+    const res = await ctx.api("hr.lead").patch(`/api/documents/${doc.body.id}/verify`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ verified: true, verifiedBy: "hr.lead" });
   });

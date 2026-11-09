@@ -22,6 +22,27 @@
       "when": 1791971814397,
       "tag": "0002_sync_worker_code_default",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794250845202,
+      "tag": "0003_auth_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794250845957,
+      "tag": "0004_auth_roles_and_row_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794251248545,
+      "tag": "0005_entity_from_request_scope",
+      "breakpoints": true
     }
   ]
 }

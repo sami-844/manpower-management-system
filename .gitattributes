@@ -1,2 +1,6 @@
 # PDFs are byte-exact (the print-spooler embeds assets/test-page.pdf); never convert their line endings.
 *.pdf binary
+# Migrations are hashed byte for byte (apps/api/drizzle/migrations.lock); LF everywhere so a Windows
+# checkout and CI compute the same hashes.
+*.sql text eol=lf
+apps/api/drizzle/migrations.lock text eol=lf

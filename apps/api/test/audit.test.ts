@@ -19,8 +19,8 @@ describe("audit trail (Spec §6)", () => {
 
   it("records before and after when a document is verified", async () => {
     const w = await createWorker(ctx, {}, []);
-    const doc = await ctx.api().post(`/api/workers/${w.id}/documents`).set("x-user", "pro").send({ type: "medical", expiryDate: "2027-01-01" });
-    await ctx.api().patch(`/api/documents/${doc.body.id}/verify`).set("x-user", "hr.lead");
+    const doc = await ctx.api("pro").post(`/api/workers/${w.id}/documents`).send({ type: "medical", expiryDate: "2027-01-01" });
+    await ctx.api("hr.lead").patch(`/api/documents/${doc.body.id}/verify`);
     const res = await ctx.api().get("/api/audit").query({ subjectId: doc.body.id });
     const verify = res.body.items.find((e: { action: string }) => e.action === "document.verify");
     expect(verify.before.verified).toBe(false);
@@ -31,7 +31,7 @@ describe("audit trail (Spec §6)", () => {
   it("keeps an intact hash chain", async () => {
     await createWorker(ctx);
     await createWorker(ctx);
-    const res = await ctx.api().get("/api/audit/verify");
+    const res = await ctx.api("owner.gm").get("/api/audit/verify");
     expect(res.body).toMatchObject({ intact: true });
     expect(res.body.checked).toBeGreaterThan(0);
   });
@@ -51,7 +51,7 @@ describe("audit trail (Spec §6)", () => {
       await tx`UPDATE audit_events SET actor = 'forged' WHERE id = (SELECT max(id) FROM audit_events)`;
       await tx`ALTER TABLE audit_events ENABLE TRIGGER audit_events_no_update`;
     });
-    const res = await ctx.api().get("/api/audit/verify");
+    const res = await ctx.api("owner.gm").get("/api/audit/verify");
     expect(res.body.intact).toBe(false);
     expect(res.body.firstBrokenId).toBeTypeOf("number");
   });

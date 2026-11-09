@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { DOCUMENT_TYPES } from "@mms/core";
 import { z } from "zod";
 import { AuditService } from "../audit/audit.service";
+import { RequirePermission } from "../auth/permissions";
 import { Actor } from "../common/actor";
 import { parse } from "../common/validation";
 import { DB, type Database } from "../db/client";
@@ -39,11 +40,13 @@ export class SitesService {
 export class SitesController {
   constructor(@Inject(SitesService) private readonly sites: SitesService) {}
 
+  @RequirePermission("sites.read")
   @Get()
   async list() {
     return { items: await this.sites.list() };
   }
 
+  @RequirePermission("sites.create")
   @Post()
   create(@Body() body: unknown, @Actor() actor: string) {
     return this.sites.create(parse(createSiteSchema, body), actor);

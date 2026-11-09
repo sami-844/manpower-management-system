@@ -1,5 +1,6 @@
 import { Controller, Get, Inject, Query } from "@nestjs/common";
 import { z } from "zod";
+import { RequirePermission } from "../auth/permissions";
 import { parse } from "../common/validation";
 import { AuditService } from "./audit.service";
 
@@ -7,12 +8,14 @@ import { AuditService } from "./audit.service";
 export class AuditController {
   constructor(@Inject(AuditService) private readonly audit: AuditService) {}
 
+  @RequirePermission("audit.read")
   @Get()
   async list(@Query() query: unknown) {
     const { subjectId } = parse(z.object({ subjectId: z.string().min(1) }), query);
     return { items: await this.audit.forSubject(subjectId) };
   }
 
+  @RequirePermission("audit.verify")
   @Get("verify")
   verify() {
     return this.audit.verifyChain();
