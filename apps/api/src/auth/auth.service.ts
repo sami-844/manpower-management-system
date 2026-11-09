@@ -124,14 +124,17 @@ export class AuthService {
     const username = input.username.toLowerCase();
     const now = this.now();
 
+    // The attempt row is written first and counted with the others, so parallel guesses from one
+    // network see each other: the per-IP limit holds under concurrency, not just in sequence.
+    const attemptId = await this.openAttempt(username, client);
     if (client.ip) {
       const since = new Date(now.getTime() - this.config.ipWindowSec * 1000);
       const [row] = await this.base
         .select({ n: count() })
         .from(loginAttempts)
         .where(and(eq(loginAttempts.ip, client.ip), eq(loginAttempts.isSuccess, false), gt(loginAttempts.at, since)));
-      if ((row?.n ?? 0) >= this.config.ipFailureLimit) {
-        await this.attempt(this.base, username, null, client, false, "ip_limited");
+      if ((row?.n ?? 0) > this.config.ipFailureLimit) {
+        await this.closeAttempt(attemptId, null, false, "ip_limited");
         throw problem(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_ATTEMPTS", "Too many failed sign-ins from this network. Try again later.");
       }
     }
@@ -139,30 +142,34 @@ export class AuthService {
     const [user] = await this.base.select().from(users).where(eq(sql`lower(${users.username})`, username)).limit(1);
     if (!user) {
       await burnPasswordCheck(input.password);
-      await this.attempt(this.base, username, null, client, false, "unknown_user");
+      await this.closeAttempt(attemptId, null, false, "unknown_user");
       throw invalidCredentials();
     }
-    if (user.lockedUntil && user.lockedUntil > now) {
-      await this.attempt(this.base, username, user.id, client, false, "locked");
-      throw problem(423, "ACCOUNT_LOCKED", "Too many failed sign-ins. This account is locked for a while.", {
-        retryAfterSeconds: Math.ceil((user.lockedUntil.getTime() - now.getTime()) / 1000),
-      });
+    // Reserve one of the account's allowed failures before checking anything (see reserveTry).
+    if (!(await this.reserveTry(user.id))) {
+      await this.closeAttempt(attemptId, user.id, false, "locked");
+      throw await this.lockedProblem(user.id);
     }
     if (!(await verifyPassword(input.password, user.passwordHash))) {
-      await this.recordFailure(user, client, "bad_password");
+      await this.failTry(user, client, attemptId, "bad_password");
       throw invalidCredentials();
     }
     if (user.status !== "active") {
-      await this.attempt(this.base, username, user.id, client, false, "disabled");
+      await this.releaseTry(user.id);
+      await this.closeAttempt(attemptId, user.id, false, "disabled");
       throw problem(HttpStatus.FORBIDDEN, "ACCOUNT_DISABLED", "This account is disabled. Ask the system admin.");
     }
     if (user.totpSecretSealed) {
       // The password was right; asking for the code is not a failure.
-      if (!input.otp) throw problem(HttpStatus.UNAUTHORIZED, "OTP_REQUIRED", "Enter the 6-digit code from your authenticator app.");
+      if (!input.otp) {
+        await this.releaseTry(user.id);
+        await this.closeAttempt(attemptId, user.id, true, "otp_required");
+        throw problem(HttpStatus.UNAUTHORIZED, "OTP_REQUIRED", "Enter the 6-digit code from your authenticator app.");
+      }
       const secret = this.openSecret(user.totpSecretSealed);
       const step = verifyTotp(secret, input.otp, now.getTime(), user.totpLastStep);
       if (step === null || !(await this.claimTotpStep(this.base, user.id, step))) {
-        await this.recordFailure(user, client, "bad_otp");
+        await this.failTry(user, client, attemptId, "bad_otp");
         throw problem(HttpStatus.UNAUTHORIZED, "OTP_INVALID", "That code is wrong or has already been used.");
       }
     }
@@ -173,7 +180,7 @@ export class AuthService {
         .set({ failedSignIns: 0, lockedUntil: null, lastSignInAt: now, updatedAt: now })
         .where(eq(users.id, user.id));
       const { sessionId, refreshToken } = await this.createSession(tx, user.id, client);
-      await this.attempt(tx, username, user.id, client, true, "ok");
+      await tx.update(loginAttempts).set({ userId: user.id, isSuccess: true, reason: "ok" }).where(eq(loginAttempts.id, attemptId));
       await this.audit.record(tx, {
         actor: user.username,
         action: "auth.sign_in",
@@ -181,6 +188,7 @@ export class AuthService {
         subjectId: user.id,
         before: null,
         after: { sessionId, ip: client.ip },
+        entityId: await this.homeEntity(user.id),
       });
       return this.session(user, sessionId, refreshToken);
     });
@@ -219,6 +227,7 @@ export class AuthService {
           subjectId: user.id,
           before: null,
           after: { sessionId: s.id, ip: client.ip },
+          entityId: await this.homeEntity(user.id),
         });
         return { ended: true as const };
       }
@@ -340,6 +349,7 @@ export class AuthService {
         subjectId: s.userId,
         before: null,
         after: { sessionId: s.id },
+        entityId: await this.homeEntity(s.userId),
       });
     });
   }
@@ -352,10 +362,13 @@ export class AuthService {
   async changePassword(p: Principal, input: z.infer<typeof changePasswordSchema>, client: ClientInfo): Promise<{ next: NextStep }> {
     const [user] = await this.base.select().from(users).where(eq(users.id, p.userId));
     if (!user) throw sessionEnded();
+    // Guessing the current password from a stolen session is a sign-in attempt like any other.
+    if (!(await this.reserveTry(user.id))) throw await this.lockedProblem(user.id);
     if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
-      await this.recordFailure(user, client, "bad_current_password");
+      await this.failTry(user, client, await this.openAttempt(user.username, client), "bad_current_password");
       throw problem(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_WRONG", "Your current password is not right.");
     }
+    await this.releaseTry(user.id);
     const problems = checkPasswordPolicy(input.newPassword, user.username);
     if (problems.length) throw problem(HttpStatus.BAD_REQUEST, "PASSWORD_POLICY", "Choose a different password.", { problems });
     const history = await this.base
@@ -389,6 +402,7 @@ export class AuthService {
         subjectId: user.id,
         before: publicUser(user),
         after: publicUser(after!),
+        entityId: await this.homeEntity(user.id),
       });
       return { next: this.nextStep(after!) };
     });
@@ -431,6 +445,7 @@ export class AuthService {
         subjectId: user.id,
         before: publicUser(user),
         after: publicUser(after!),
+        entityId: await this.homeEntity(user.id),
       });
       return { next: this.nextStep(after!) };
     });
@@ -479,22 +494,50 @@ export class AuthService {
       .where(and(eq(userSessions.id, sessionId), isNull(userSessions.revokedAt)));
   }
 
-  /** One failure, counted atomically; the fifth in a row locks the account. */
-  private async recordFailure(user: UserRow, client: ClientInfo, reason: string): Promise<void> {
+  /**
+   * Reserve one try before verifying (reserve-then-verify): one atomic UPDATE that succeeds only
+   * while the account is unlocked and has tries left, so N parallel guesses cannot all slip in
+   * before the counter catches up. A right password releases its try; a wrong one keeps it.
+   */
+  private async reserveTry(userId: string): Promise<boolean> {
+    const rows = await this.base
+      .update(users)
+      .set({ failedSignIns: sql`${users.failedSignIns} + 1` })
+      .where(
+        and(
+          eq(users.id, userId),
+          or(isNull(users.lockedUntil), lte(users.lockedUntil, this.now())),
+          sql`${users.failedSignIns} < ${this.config.lockAfterFailures}`,
+        ),
+      )
+      .returning({ id: users.id });
+    return rows.length === 1;
+  }
+
+  private async releaseTry(userId: string): Promise<void> {
+    await this.base
+      .update(users)
+      .set({ failedSignIns: sql`greatest(${users.failedSignIns} - 1, 0)` })
+      .where(eq(users.id, userId));
+  }
+
+  /** A failed try stays counted; once the tries are used up the account locks and the count restarts. */
+  private async failTry(user: UserRow, client: ClientInfo, attemptId: number, reason: string): Promise<void> {
     const now = this.now();
     const lockUntil = new Date(now.getTime() + this.config.lockSec * 1000);
     const limit = this.config.lockAfterFailures;
+    const entityId = await this.homeEntity(user.id);
     await this.base.transaction(async (tx) => {
       const [after] = await tx
         .update(users)
         .set({
-          failedSignIns: sql`case when ${users.failedSignIns} + 1 >= ${limit} then 0 else ${users.failedSignIns} + 1 end`,
-          lockedUntil: sql`case when ${users.failedSignIns} + 1 >= ${limit} then ${lockUntil.toISOString()}::timestamptz else ${users.lockedUntil} end`,
+          lockedUntil: sql`case when ${users.failedSignIns} >= ${limit} then ${lockUntil.toISOString()}::timestamptz else ${users.lockedUntil} end`,
+          failedSignIns: sql`case when ${users.failedSignIns} >= ${limit} then 0 else ${users.failedSignIns} end`,
           updatedAt: now,
         })
         .where(eq(users.id, user.id))
         .returning({ lockedUntil: users.lockedUntil });
-      await this.attempt(tx, user.username, user.id, client, false, reason);
+      await tx.update(loginAttempts).set({ userId: user.id, isSuccess: false, reason }).where(eq(loginAttempts.id, attemptId));
       if (after?.lockedUntil && after.lockedUntil.getTime() === lockUntil.getTime()) {
         await this.audit.record(tx, {
           actor: user.username,
@@ -503,13 +546,43 @@ export class AuthService {
           subjectId: user.id,
           before: null,
           after: { lockedUntil: lockUntil.toISOString(), ip: client.ip },
+          entityId,
         });
       }
     });
   }
 
-  private async attempt(orm: Orm | Tx, username: string, userId: string | null, client: ClientInfo, isSuccess: boolean, reason: string) {
-    await orm.insert(loginAttempts).values({ username: username.slice(0, 100), userId, ip: client.ip, isSuccess, reason, at: this.now() });
+  private async lockedProblem(userId: string) {
+    const [u] = await this.base.select({ lockedUntil: users.lockedUntil }).from(users).where(eq(users.id, userId));
+    const ms = (u?.lockedUntil?.getTime() ?? 0) - this.clock.now();
+    return problem(423, "ACCOUNT_LOCKED", "Too many failed sign-ins. This account is locked for a while.", {
+      retryAfterSeconds: Math.max(60, Math.ceil(ms / 1000)),
+    });
+  }
+
+  /** Written before any check (counted as a failure until it is closed as something else). */
+  private async openAttempt(username: string, client: ClientInfo): Promise<number> {
+    const [row] = await this.base
+      .insert(loginAttempts)
+      .values({ username: username.slice(0, 100), ip: client.ip, isSuccess: false, reason: "pending", at: this.now() })
+      .returning({ id: loginAttempts.id });
+    return row!.id;
+  }
+
+  private async closeAttempt(id: number, userId: string | null, isSuccess: boolean, reason: string): Promise<void> {
+    await this.base.update(loginAttempts).set({ userId, isSuccess, reason }).where(eq(loginAttempts.id, id));
+  }
+
+  /**
+   * The entity a user's own sign-in events belong to (row-level security on audit_events): the
+   * one company they hold roles in, or PLATFORM when they hold roles in several or none.
+   */
+  async homeEntity(userId: string): Promise<string> {
+    const rows = await this.base
+      .selectDistinct({ e: userRoles.entityId })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, userId), isNull(userRoles.revokedAt)));
+    return rows.length === 1 ? rows[0]!.e : "PLATFORM";
   }
 
   /** Accept each code once: the step only moves forward, and only one racing request can move it. */

@@ -13,6 +13,8 @@ export interface AuditEntry {
   subjectId: string;
   before: unknown;
   after: unknown;
+  /** Defaults to the request's entity; set for events written outside a request scope (sign-in). */
+  entityId?: string;
 }
 
 const GENESIS = "0".repeat(64);
@@ -44,11 +46,14 @@ export class AuditService {
 
   /** Append an event inside the caller's transaction, so the change and its record commit together. */
   async record(tx: Tx, entry: AuditEntry): Promise<void> {
-    const e = { ...entry, before: normalise(entry.before), after: normalise(entry.after) };
+    const { entityId, ...rest } = entry;
+    const e = { ...rest, before: normalise(entry.before), after: normalise(entry.after) };
     await tx.execute(sql`select pg_advisory_xact_lock(${AUDIT_LOCK})`);
-    const [last] = await tx.select({ hash: auditEvents.hash }).from(auditEvents).orderBy(desc(auditEvents.id)).limit(1);
+    // One chain across all entities: audit_last_hash() is SECURITY DEFINER, so a request that can
+    // only see its own entity's rows (row-level security) still links to the true last event.
+    const [last] = (await tx.execute(sql`select audit_last_hash() as hash`)) as unknown as { hash: string | null }[];
     const prevHash = last?.hash ?? GENESIS;
-    await tx.insert(auditEvents).values({ ...e, prevHash, hash: hashOf(prevHash, e) });
+    await tx.insert(auditEvents).values({ ...e, ...(entityId ? { entityId } : {}), prevHash, hash: hashOf(prevHash, e) });
   }
 
   async forSubject(subjectId: string) {
@@ -59,9 +64,12 @@ export class AuditService {
       .orderBy(asc(auditEvents.id));
   }
 
-  /** Recompute the whole chain; any edited or removed row breaks it. */
+  /**
+   * Recompute the whole chain; any edited or removed row breaks it. Reads every entity's rows
+   * (outside row-level security) but returns only counts and an id, never another entity's data.
+   */
   async verifyChain(): Promise<{ intact: boolean; checked: number; firstBrokenId: number | null }> {
-    const rows = await this.db.orm.select().from(auditEvents).orderBy(asc(auditEvents.id));
+    const rows = await this.db.base.select().from(auditEvents).orderBy(asc(auditEvents.id));
     let prevHash = GENESIS;
     for (const row of rows) {
       const expected = hashOf(prevHash, row as AuditEntry);

@@ -39,12 +39,14 @@ export class AdminUsersService {
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
 
-  async list() {
-    const rows = await this.db.orm.select().from(users).orderBy(asc(users.username));
+  /** Users who belong to the admin's entity (hold or held a role there), with their roles there only. */
+  async list(actor: Principal) {
+    const inEntity = this.db.orm.selectDistinct({ id: userRoles.userId }).from(userRoles).where(eq(userRoles.entityId, actor.entityId!));
+    const rows = await this.db.orm.select().from(users).where(inArray(users.id, inEntity)).orderBy(asc(users.username));
     const roles = await this.db.orm
       .select({ userId: userRoles.userId, role: userRoles.roleKey, entityId: userRoles.entityId })
       .from(userRoles)
-      .where(isNull(userRoles.revokedAt));
+      .where(and(isNull(userRoles.revokedAt), eq(userRoles.entityId, actor.entityId!)));
     const now = this.clock.now();
     return {
       items: rows.map((u) => ({
@@ -98,7 +100,7 @@ export class AdminUsersService {
     const now = new Date(this.clock.now());
     const today = this.clock.today();
     return this.db.orm.transaction(async (tx) => {
-      const user = await this.load(tx, userId);
+      const user = await this.load(tx, actor, userId);
       const current = await tx
         .select()
         .from(userRoles)
@@ -169,7 +171,7 @@ export class AdminUsersService {
   private change(actor: Principal, userId: string, action: string, endSessions: string | null, set: Partial<typeof users.$inferInsert>) {
     const now = new Date(this.clock.now());
     return this.db.orm.transaction(async (tx) => {
-      const before = await this.load(tx, userId);
+      const before = await this.load(tx, actor, userId);
       const [after] = await tx
         .update(users)
         .set({ ...set, updatedAt: now, updatedBy: actor.username })
@@ -186,9 +188,21 @@ export class AdminUsersService {
     });
   }
 
-  private async load(tx: Parameters<Parameters<Database["orm"]["transaction"]>[0]>[0], userId: string) {
-    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+  /**
+   * The target user, locked for the change, only if an admin of this entity may manage them: they
+   * belong to this entity and hold no active role in another (that needs an admin of both).
+   * A user of another entity is reported as not found, so admins cannot probe other companies.
+   */
+  private async load(tx: Parameters<Parameters<Database["orm"]["transaction"]>[0]>[0], actor: Principal, userId: string) {
+    const memberships = await tx
+      .select({ entityId: userRoles.entityId, revokedAt: userRoles.revokedAt })
+      .from(userRoles)
+      .where(eq(userRoles.userId, userId));
+    const belongs = memberships.some((m) => m.entityId === actor.entityId);
+    const elsewhere = memberships.some((m) => m.entityId !== actor.entityId && m.revokedAt === null);
+    const [user] = belongs ? await tx.select().from(users).where(eq(users.id, userId)).for("update") : [];
     if (!user) throw problem(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "No such user.");
+    if (elsewhere) throw problem(HttpStatus.FORBIDDEN, "USER_IN_OTHER_ENTITY", "This user also works for another company; an admin of both must change them.");
     return user;
   }
 }
@@ -199,8 +213,8 @@ export class AdminUsersController {
 
   @RequirePermission("users.manage")
   @Get()
-  list() {
-    return this.users.list();
+  list(@Req() req: AuthedRequest) {
+    return this.users.list(req.auth!);
   }
 
   @RequirePermission("users.manage")

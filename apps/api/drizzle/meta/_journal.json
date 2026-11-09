@@ -43,6 +43,13 @@
       "when": 1794251248545,
       "tag": "0005_entity_from_request_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794251933779,
+      "tag": "0006_audit_row_security",
+      "breakpoints": true
     }
   ]
 }
