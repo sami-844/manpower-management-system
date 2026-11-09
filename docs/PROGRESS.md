@@ -8,7 +8,7 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 — agentic engineering workflow installed (skills, state files, gates). No product code changed.
+**Last session:** 2026-11-09 — agent setup completed: upstream JSM and Karpathy sources vendored, CLAUDE.md hub, MCP servers, hooks, subagents, doctor. No product code changed.
 **Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 17 passed · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
 
 ## How a step runs
@@ -30,6 +30,7 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - [x] Toolchain moved to Bun (package manager, API runtime, test runner for core and API). 2026-10-14, `f8115c6`
 - [x] Release scope recorded: Version 1 / Version 2 (CLAUDE.md, README). 2026-11-02 and 2026-11-09, `06fdc98`, `322af93`
 - [x] Specification complete in the shared document and mirrored in `docs/spec/`: PRD, Technical Spec, Delivery Phases, TRD, App Flow, Backend Schema, Implementation Plan, Design Brief. 2026-11-09
+- [x] Agent setup, part 2: upstream sources in `third_party/` (JSM video skills `fd85d6a`, JSM v2 `43b69e4`, Karpathy guidelines `2c60614`); `/karpathy-guidelines` active; `CLAUDE.md` rewritten as the hub (Karpathy principles, loop, tool-for-job, file map, 13 rules, Never table); `.mcp.json` (7 servers); `.claude/settings.json` (permissions, SessionStart, PreToolUse guard, PostToolUse gates); `.claude/agents/` (spec-scout, independent-reviewer); `bun run agent:doctor`; skills wired to agents and MCP servers. 2026-11-09
 - [x] Agentic engineering workflow: `.claude/skills/` (architect, review, recover, remember, imprint), `docs/PROGRESS.md`, `docs/DECISIONS.md`, `docs/DEFERRED.md`, `docs/SCHEMA_GOVERNANCE.md`, `docs/ui-registry.md`, `scripts/gates.ts` (`bun run gates`, in CI). 2026-11-09
 
 ## In progress
@@ -63,6 +64,15 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 ---
 
 ## Session log (newest first)
+
+**2026-11-09 (2) — Agent setup completed. On `main`, not pushed (no remote yet).**
+
+- **Asked by Sami:** put the JavaScript Mastery files in the package; one CLAUDE.md that connects every file, its use, best practices and what to avoid; apply the Karpathy skills; use skills and MCP servers to the full.
+- **Found:** the video's five skills are in `jsmastery-pro/jsm-agent-skill` (MIT); `JavaScript-Mastery-Pro/skills` is JSM's later v2 workflow. Both vendored with the Karpathy repo; upstream `CLAUDE.md` files renamed so they cannot load.
+- **Built:** see Completed. The guard hook blocks edits to applied migrations, the lock, `.env` files and signed golden values (14 tests). The gates run after every agent edit (about 50 ms).
+- **Verified:** gates green; tooling tests 14 passed; doctor 0 fail (1 warn: `GITHUB_PAT` unset, expected until D10); core 94, API 29, web 17 passed; typecheck clean.
+- **For Sami:** install uv for the postgres, aws-docs and terraform servers; set `GITHUB_PAT` once D10 is done; approve the github and postgres servers on first run (`/mcp`).
+- **Next:** unchanged: `/architect` on the S1 daily-sheet entry proof, or chase D6–D8.
 
 **2026-11-09 — Agentic engineering workflow installed. On `main`, not pushed (no remote yet).**
 

@@ -37,6 +37,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Repository gates (migrations lock, money, dates, sequences, lockfile, golden, personal data, colours)
         run: bun run gates
+      - name: Agent setup (hook tests and doctor)
+        run: bun run test:tooling && bun run agent:doctor
       - run: bun run typecheck
       - run: bun run test
       - name: Mutation testing (gate 80%)

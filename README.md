@@ -31,7 +31,8 @@ client portal and worker app; see "Release scope" in CLAUDE.md.
 Every step follows the JavaScript Mastery skills loop, adapted to this system:
 `/remember restore` → `/architect` → build (tests first) → `/review` → `/imprint` (UI) → `/remember save`, with `/recover` when something breaks.
 The skills live in `.claude/skills/`; the build state lives in `docs/PROGRESS.md` (read first, update last), `docs/DECISIONS.md`, `docs/DEFERRED.md` and `docs/ui-registry.md`; the database rulebook is `docs/SCHEMA_GOVERNANCE.md`; the full specification is mirrored in `docs/spec/`.
-`bun run gates` enforces the rules a script can check (migrations lock, money types, dates, sequences, lockfile, golden sign-off, personal data, colours) and runs first in CI.
+`bun run gates` enforces the rules a script can check (migrations lock, money types, dates, sequences, lockfile, golden sign-off, personal data, colours) and runs first in CI and after every agent edit.
+Working principles come from the Karpathy guidelines (`/karpathy-guidelines`). MCP servers (`.mcp.json`), hooks and permissions (`.claude/settings.json`) and subagents (`.claude/agents/`) are part of the setup; run `bun run agent:doctor` after cloning. **`CLAUDE.md` is the map of every file and rule.** Upstream originals (JSM and Karpathy, with licences) are in `third_party/`.
 
 ## Layout
 

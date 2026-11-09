@@ -37,6 +37,8 @@ Run `audit` first on any codebase where `docs/ui-registry.md` has no component e
 
 If a path was given, read it. Otherwise identify recently created or modified files under `apps/web/src/` and `packages/ui/`.
 
+Read the code, then **look at the result**: with the web app running (`bun run dev:web`), use the **playwright** MCP server to open the screen, take a snapshot at desktop and phone widths, and check what the code cannot show (truncation, row height, focus rings, badge legibility). Use the **shadcn** MCP server to compare against the registry version of any component that was customised.
+
 If it is unclear:
 
 ```

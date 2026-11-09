@@ -35,6 +35,10 @@ bun run test:mutation    # when packages/core changed
 
 Record the actual result of each. A gate that was not run is reported as **not run**, never as passed.
 
+**Independent eyes for high-stakes work.** If the change touches payroll, WPS, end of service, eligibility, permissions or row-level security, four-eyes approvals, migrations, audit or personal data, also run the **`independent-reviewer`** agent ("Use the independent-reviewer agent on this diff"). It has not seen the build, so it cannot grade the work by the builder's intentions. Merge its findings into the report; where it and you disagree, report both.
+
+**UI changes:** use the **playwright** MCP server to open the changed screen on the local web app and look at it (empty, loading, error and full states) before signing off Layer 4.
+
 ## Step 3 — Review in four layers
 
 ### Layer 1 — Does it match the specification?

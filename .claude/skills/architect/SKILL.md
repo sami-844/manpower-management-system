@@ -31,6 +31,11 @@ In this order, every time:
 
 Do not ask about anything the specification already answers. A senior engineer does their homework before the meeting, and here the homework is written down.
 
+**Use the tools, keep the context clean:**
+- Delegate item 3 to the **`spec-scout`** agent ("Use the spec-scout agent for S4 · worker bank accounts"). It returns cited TR-IDs, screens, tables and conflicts without loading 9 documents into this conversation.
+- Library questions (NestJS, Drizzle, Tauri, TanStack, Bun) go to the **context7** MCP server for current docs, not memory. shadcn components: the **shadcn** MCP server. AWS services: **aws-docs**. Never plan around an API you have not checked.
+- To see the current database shape, query the **postgres** MCP server (read-only, local seeded data) instead of guessing from migrations.
+
 ## Step 2 — Stop if the step is blocked
 
 If the step depends on a decision that is still `UNANSWERED` in `docs/DECISIONS.md`, or on Version 2 scope while Version 1 is being built:

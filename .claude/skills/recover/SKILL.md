@@ -59,6 +59,8 @@ Here is how we handle it:
 
 **Diagnose before touching code.** Ask for the exact error, the file, and what the code was supposed to do. Read only what is relevant.
 
+Gather evidence with tools, not guesses: the **postgres** MCP server (read-only) for the actual rows, constraints, triggers and RLS policies; the **playwright** MCP server to reproduce a screen fault and read console and network errors; **context7** for the library's current behaviour; the **github** MCP server for the failing CI log once the repository exists. Reproduce the failure in a test before fixing it (Karpathy: "write a test that reproduces it, then make it pass").
+
 **Find the root cause and state it:**
 
 ```

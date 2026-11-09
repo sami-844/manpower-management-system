@@ -5,8 +5,10 @@
   "scripts": {
     "build": "bun run --filter '*' build",
     "gates": "bun scripts/gates.ts",
+    "agent:doctor": "bun scripts/agent-doctor.ts",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun run --filter '*' test",
+    "test:tooling": "bun test ./.claude/hooks",
     "test:mutation": "bun run --filter @mms/core test:mutation",
     "dev:api": "bun run --filter @mms/api dev",
     "dev:web": "bun run --filter @mms/web dev",
