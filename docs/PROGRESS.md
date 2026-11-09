@@ -8,8 +8,8 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 (3) — Version 1 demo foundation on branch `feat/v1-demo-foundation`: shadcn/ui shell and all 41 V1 screens; modules without an API run on a fictional demo layer (DECISIONS A17).
-**Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 17 passed · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
+**Last session:** 2026-11-09 (4) — Public GitHub repository (A19) and a one-click Cloudflare Workers deploy of the client demo (A20); demo merged to `main`.
+**Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 45 passed · e2e 6/6 · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
 
 ## How a step runs
 
@@ -23,6 +23,7 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 
 ## Completed
 
+- [x] Hosted client demo: `wrangler.jsonc` + README "Deploy to Cloudflare" button + `bun run deploy`; `--mode demo` build answers the web's 13 API calls in the browser (`apps/web/src/demo/server.ts`, `@mms/core` engines, fictional seed recipe, hash-chained audit), 6 tests; Playwright 6/6 against the hosted build with no API server. Public GitHub repository (DECISIONS A19, A20). 2026-11-09
 - [x] Version 1 demo foundation (branch `feat/v1-demo-foundation`): Tailwind v4 + shadcn/ui (Radix, `rtl: true`) with the Design Brief tokens; dashboard-01 shell (role-filtered sidebar, breadcrumb, Ctrl+K S-03, notifications); demo sign-in S-01; every V1 screen S-01…S-41 built. Real API for workers, documents, verification, eligibility, renewals, overrides, leave, sites and audit; typed fictional demo layer (`apps/web/src/demo/`) for clients, operations, time, payroll, billing, ledger, insight and admin, each screen badged "Sample data". Web tests 17 → 39 (demo money/ledger invariants, entry-grid keyboard); e2e signs in first. 2026-11-09
 
 - [x] First working slice — core engines: compliance check (`checkEligibility`), renewal tiers 90/60/30/7, OMR money, dates, summary; 94 tests, mutation score 95 %. 2026-10-14, `722d7f0`
@@ -54,11 +55,12 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - S1 · AWS landing zone — blocked on **D6** (region after the PDPL transfer assessment). Ask: owner with the DPO, 2026-11-09.
 - S1 · Silent-print proof — blocked on **D7** (office printer models and access to them). Ask: company IT contact, 2026-11-09.
 - S1 · WPS sample file — blocked on **D8** (Bank Muscat WPS specification and test channel). Ask: finance lead with Bank Muscat, 2026-11-09.
-- Pushing to GitHub and running CI — blocked on **D10** (empty private repository). Ask: Sami, 2026-11-09.
 - G0 — needs **D1–D4** answered by the owner.
 
 ## Notes
 
+- 2026-11-09 `apps/web/src/demo/server.ts` mirrors the API endpoints the web calls (validation, masking, audit chain) for the hosted demo. Change it with any such endpoint; `server.test.ts` and the e2e journeys run against it. The normal build drops it (Vite `MODE`).
+- 2026-11-09 The root `build` script was removed: unused, and it built the Tauri installer, which fails on machines without Rust (and on Cloudflare). CI builds each package by name.
 - 2026-11-09 The demo layer is not the product. Each module's sprint replaces `src/demo/<module>.ts` with real `/api/v1` calls and tests first (rule 1); legal values shown in the demo are marked "demo · unsigned" and must come from signed `rule_versions` (rules 3–4). D8 and D9 still show as pending on screen.
 - 2026-11-09 `.claude/hooks/guard.test.ts`: 2 of 14 fail on Windows only (POSIX fixture paths vs `path.join` backslashes); pre-existing, passes on Linux CI. Not changed: hooks are human-owned.
 - 2026-11-09 Seed now mixes ~86% deployed / ~8% bench / ~6% on leave (was 60/36/4) so the demo's bench rate is realistic; `SEED_WORKERS=680` for the demo.
@@ -70,6 +72,14 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 ---
 
 ## Session log (newest first)
+
+**2026-11-09 (4) — GitHub and the hosted demo.**
+
+- **Asked by Sami:** a GitHub repository and a README button that deploys the demo to Cloudflare Workers.
+- **Decided with Sami:** public repository (A19; the button needs one; Sami accepted that the spec and history become public); fast-forward `main` to the demo.
+- **Built:** browser stand-in for the API in the demo build; `wrangler.jsonc` (static assets), root `build:demo` and `deploy` scripts, `wrangler` 4.158.0 pinned; "Hosted demo" badge in the header; README section; CLAUDE.md file map; GitHub CLI installed.
+- **Verified:** gates green; typecheck clean; core 94, API 29, web 45; Playwright 6/6 against the demo build with the API URL pointed at a dead port; all 40 web screens open with no console errors; `wrangler deploy --dry-run` reads 106 assets; the normal build contains none of the stand-in.
+- **Next:** CI runs on the first push; watch it. S2 as planned.
 
 **2026-11-09 (3) — Version 1 demo foundation. Branch `feat/v1-demo-foundation`, not pushed (no remote, D10).**
 

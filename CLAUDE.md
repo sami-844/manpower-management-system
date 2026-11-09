@@ -179,6 +179,7 @@ Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spe
 | `apps/desktop/src-tauri`, `apps/desktop/print-spooler` | Tauri 2 shell; Rust silent batch printing (`cargo test`) | Build steps | Printing and desktop work |
 | `packages/ui` (from S2) | shadcn components and Design Brief tokens (`styles/tokens.css`) | S2 onwards | Any UI step |
 | `docker-compose.yml` | Local PostgreSQL 16 (`mms_dev`, plus test database) | Humans | Local setup |
+| `wrangler.jsonc`, `apps/web/src/demo/server.ts` | Hosted client demo on Cloudflare Workers (DECISIONS A20): static `--mode demo` build whose API calls are answered in the browser by `server.ts` from `@mms/core` and fictional data. Demo hosting only; production is AWS (A10). When an `apps/api` endpoint the web calls changes, change `server.ts` with it (`server.test.ts`) | Humans (config); build steps (`server.ts`) | Deploying the demo; any change to an endpoint the web calls |
 | **Upstream (`third_party/`)** | Verbatim JSM (video set and v2) and Karpathy sources, with commits and licences in `third_party/README.md` | Upstream only; never edited | To compare against or take an update |
 
 ---

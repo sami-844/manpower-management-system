@@ -38,16 +38,19 @@ export function PageHeader({
   );
 }
 
-export function SampleDataBadge() {
+export function SampleDataBadge({
+  label = "Sample data",
+  tip = "Fictional demo figures. This module's API arrives in its sprint (Implementation Plan); the screen and flow are final.",
+}: { label?: string; tip?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex h-5 items-center gap-1 rounded-full border border-dashed border-highlight/60 bg-highlight/10 px-2 text-[11px] font-medium text-highlight-foreground dark:text-highlight">
+        <span tabIndex={0} className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-dashed border-highlight/60 bg-highlight/10 px-2 text-[11px] font-medium whitespace-nowrap text-highlight-foreground dark:text-highlight">
           <FlaskConicalIcon aria-hidden className="size-3" />
-          Sample data
+          {label}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-64">Fictional demo figures. This module's API arrives in its sprint (Implementation Plan); the screen and flow are final.</TooltipContent>
+      <TooltipContent className="max-w-64">{tip}</TooltipContent>
     </Tooltip>
   );
 }

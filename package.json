@@ -3,7 +3,8 @@
   "private": true,
   "packageManager": "bun@1.4.2",
   "scripts": {
-    "build": "bun run --filter '*' build",
+    "build:demo": "bun run --filter @mms/web build:demo",
+    "deploy": "bun run build:demo && wrangler deploy",
     "gates": "bun scripts/gates.ts",
     "agent:doctor": "bun scripts/agent-doctor.ts",
     "typecheck": "bun run --filter '*' typecheck",
@@ -26,5 +27,8 @@
     "esbuild",
     "@swc/core",
     "@tauri-apps/cli"
-  ]
+  ],
+  "devDependencies": {
+    "wrangler": "4.158.0"
+  }
 }

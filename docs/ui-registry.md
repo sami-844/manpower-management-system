@@ -35,7 +35,7 @@ Built 2026-11-09 for the Version 1 demo foundation (see DECISIONS A16–A18).
 | Data table | `components/data-table.tsx` | TanStack Table v9; sticky header, sort, paging, selection + bulk bar, skeleton rows, empty state, `/` filter, J/K/Enter |
 | Money | `components/money.tsx` | `@mms/core` formatting (decimal.js), right-aligned, tabular, 3 decimals |
 | Confirm | `components/confirm-dialog.tsx` | `AlertDialog`, button names the action and amount, optional type-to-confirm |
-| Page header, KPI card | `components/page-header.tsx`, `kpi-card.tsx` | Title + actions top-right; "Sample data" badge for demo-layer screens; number cards link to the names behind them |
+| Page header, KPI card | `components/page-header.tsx`, `kpi-card.tsx` | Title + actions top-right; "Sample data" badge for demo-layer screens (the same badge, labelled "Hosted demo", sits in the header of the Cloudflare build); number cards link to the names behind them |
 | Aceternity | `components/aceternity/*` | Approved list only: background beams (S-01), multi-step loader (payroll calculate, WPS generate), number ticker (S-32, in-house on `motion`). Colours mapped to tokens; `MotionConfig reducedMotion="user"` app-wide. Timeline and Animated Tooltip were tried and removed: both hard-code palette colours and photo avatars, so worker history (S-06) and the site crew stack (S-13) use token-based equivalents |
 
 **Deviation to confirm:** shadcn uses `--accent` for every hover/selected surface. Putting the brief's site amber there would turn every menu hover amber, against "one accent colour, sparingly". The amber lives in `--highlight` (same values as the brief's `--accent`), and `--accent` is a quiet blue-grey. Change the brief or this file, whichever the reviewer prefers.

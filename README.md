@@ -41,6 +41,23 @@ bun run dev:web                         # web on :5173 (VITE_API_URL=http://loca
 Open http://localhost:5173, choose a role on the sign-in screen, and switch roles from the
 user menu. Ctrl+K searches workers, clients, sites and screens.
 
+### Hosted demo on Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/GITHUB_OWNER/manpower-management-system)
+
+The button copies this repository into your GitHub account and deploys the demo to Cloudflare
+Workers on a free account. No database or settings are needed. Keep the suggested commands:
+the deploy command runs the root `deploy` script, which builds the demo and uploads it. You get a `*.workers.dev` link to send to clients, and
+every push to your copy redeploys it.
+
+The hosted build (`bun run build:demo`) is static. It answers its own API calls in the
+browser from the same rule engines (`@mms/core`) and fictional workers
+(`apps/web/src/demo/server.ts`). Each visitor's changes stay in their own tab and reset on
+reload, and the header shows a **Hosted demo** badge. It is for demos only: production
+runs on AWS (DECISIONS A10, A20).
+
+To deploy from this machine instead: `bunx wrangler login`, then `bun run deploy`.
+
 ## How we build (agentic engineering loop)
 
 Every step follows the JavaScript Mastery skills loop, adapted to this system:
@@ -101,7 +118,7 @@ bun run --filter @mms/desktop test:rust
 | --- | --- |
 | Core engines | 94, including property-based; mutation score 95% |
 | API (PostgreSQL) | 29 |
-| Web components | 17 |
+| Web components | 45 |
 | End-to-end | 3 journeys × 2 screen sizes |
 | Print module (Rust) | 10 |
 

@@ -14,6 +14,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // The hosted demo (Cloudflare, `vite build --mode demo`) has no API server: answer in the browser.
+  // Vite replaces MODE at build time, so other builds drop this branch and the stand-in entirely.
+  if (import.meta.env.MODE === "demo") {
+    const { demoServer } = await import("@/demo/server");
+    return demoServer().handle<T>(method, path, body, currentUser());
+  }
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: { "content-type": "application/json", "x-user": currentUser() },
