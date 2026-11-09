@@ -8,7 +8,7 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 — agent setup completed: upstream JSM and Karpathy sources vendored, CLAUDE.md hub, MCP servers, hooks, subagents, doctor. No product code changed.
+**Last session:** 2026-11-09 (3) — Version 1 demo foundation on branch `feat/v1-demo-foundation`: shadcn/ui shell and all 41 V1 screens; modules without an API run on a fictional demo layer (DECISIONS A17).
 **Gates on `main` (2026-11-09):** core 94 passed · API 29 passed (PostgreSQL 16) · web 17 passed · typecheck clean · Rust print-spooler 10 passed · `bun run gates` green.
 
 ## How a step runs
@@ -22,6 +22,8 @@
 The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's plan names its TR-IDs (`docs/spec/05-TRD.md`).
 
 ## Completed
+
+- [x] Version 1 demo foundation (branch `feat/v1-demo-foundation`): Tailwind v4 + shadcn/ui (Radix, `rtl: true`) with the Design Brief tokens; dashboard-01 shell (role-filtered sidebar, breadcrumb, Ctrl+K S-03, notifications); demo sign-in S-01; every V1 screen S-01…S-41 built. Real API for workers, documents, verification, eligibility, renewals, overrides, leave, sites and audit; typed fictional demo layer (`apps/web/src/demo/`) for clients, operations, time, payroll, billing, ledger, insight and admin, each screen badged "Sample data". Web tests 17 → 39 (demo money/ledger invariants, entry-grid keyboard); e2e signs in first. 2026-11-09
 
 - [x] First working slice — core engines: compliance check (`checkEligibility`), renewal tiers 90/60/30/7, OMR money, dates, summary; 94 tests, mutation score 95 %. 2026-10-14, `722d7f0`
 - [x] First working slice — API (NestJS on Bun, PostgreSQL 16): workers, documents and HR verification, compliance check, renewals, overrides with named approver, sites, leave, hash-chained append-only audit; migrations 0000–0002; 29 tests. 2026-10-14, `e193cef`
@@ -57,6 +59,10 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 
 ## Notes
 
+- 2026-11-09 The demo layer is not the product. Each module's sprint replaces `src/demo/<module>.ts` with real `/api/v1` calls and tests first (rule 1); legal values shown in the demo are marked "demo · unsigned" and must come from signed `rule_versions` (rules 3–4). D8 and D9 still show as pending on screen.
+- 2026-11-09 `.claude/hooks/guard.test.ts`: 2 of 14 fail on Windows only (POSIX fixture paths vs `path.join` backslashes); pre-existing, passes on Linux CI. Not changed: hooks are human-owned.
+- 2026-11-09 Seed now mixes ~86% deployed / ~8% bench / ~6% on leave (was 60/36/4) so the demo's bench rate is realistic; `SEED_WORKERS=680` for the demo.
+
 - 2026-11-09 The HMS skills (from the JavaScript Mastery JSM Skills loop) were adapted, not copied: phase documents → `docs/spec/`; R-documents and LIFT/ADAPT grades → "reuse what exists in the repo"; clinical safety → pay, legal-document and personal-data safety; Bengali typography → Arabic/right-to-left readiness. The HMS PROGRESS.md format (state header, then dated entries newest first) is kept.
 - 2026-11-09 `bun run gates` locks applied migrations by SHA-256 in `apps/api/drizzle/migrations.lock`. A new migration is added to the lock in the same commit (`bun run gates --update-lock`); an edited applied migration fails the gate.
 - 2026-11-09 The web slice still uses its own CSS (4 px radius, Atkinson font, 6 hard-coded colours, 10 physical left/right properties). Deliberate until S2; listed in `docs/ui-registry.md` as the S2 fix list.
@@ -64,6 +70,16 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 ---
 
 ## Session log (newest first)
+
+**2026-11-09 (3) — Version 1 demo foundation. Branch `feat/v1-demo-foundation`, not pushed (no remote, D10).**
+
+- **Asked by Sami:** a client-demo foundation of Version 1: every page, basic functionality, shadcn dashboard blocks, the best design/dev skills and MCP servers installed; one shot.
+- **Decided with Sami:** hybrid data (A17), free Aceternity only (A16, closes D11), name "Manpower Management System", commit on a branch. Claude decided A18 (components in `apps/web`) under delegation.
+- **Built:** foundation (tokens, shell, DataTable, StatusBadge, Money, ConfirmDialog, KpiCard, route table) then six parallel agents built the module screens; integration aligned the cross-module story (October payroll released 1 Nov; owner inbox holds a new contract), live notification/approval counts, print rules, in-house theme provider (dropped next-themes), tokenised Aceternity pieces. `gates.ts` paths normalised for Windows.
+- **Verified:** `bun run gates` green; typecheck clean (core, api, web); core 94, API 29, web 39 passed; Playwright e2e 6/6 (desktop + phone); `vite build` OK; all 35 routes rendered with no console errors; tooling 12/14 (2 pre-existing Windows-only, see Notes). Rust print-spooler not re-run (untouched).
+- **For Sami:** review A18 and the `--highlight` token deviation (ui-registry); D1–D10, D12 still open.
+- **Next:** S2 proper: Cognito sign-in replacing the demo sign-in; then each module's sprint swaps its demo file for the API, tests first.
+
 
 **2026-11-09 (2) — Agent setup completed. On `main`, not pushed (no remote yet).**
 

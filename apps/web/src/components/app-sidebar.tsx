@@ -27,9 +27,14 @@ import {
 } from "@/components/ui/sidebar";
 import { isDesktop } from "@/lib/desktop";
 import { useSession } from "@/lib/session";
-import { pendingApprovalsCount } from "@/demo/notifications";
+import { useQuery } from "@tanstack/react-query";
+import { pendingApprovalsCount as initialPending } from "@/demo/notifications";
+import { fetchApprovals } from "@/demo/insight";
 
 function NavGroupItems({ groups, pathname }: { groups: NavGroup[]; pathname: string }) {
+  // Same query as the Approvals inbox, so the badge drops as items are decided.
+  const approvals = useQuery({ queryKey: ["approvals"], queryFn: fetchApprovals });
+  const pendingApprovalsCount = approvals.data?.pending.length ?? initialPending;
   return (
     <SidebarMenu>
       {groups.map((g) => {

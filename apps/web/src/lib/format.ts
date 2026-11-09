@@ -1,4 +1,5 @@
 import type { WorkerComplianceState } from "@mms/core";
+import { DEMO_ACCOUNTS } from "./roles";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -60,3 +61,28 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;
+
+/** Scaffold-tag tone → Design Brief status tone (StatusBadge). */
+export function statusTone(tone: TagTone): "ok" | "due" | "expired" | "incomplete" {
+  return ({ green: "ok", yellow: "due", red: "expired", none: "incomplete" } as const)[tone];
+}
+
+/** Show only the last 4 characters of an ID, document or bank number (CLAUDE.md rule 11). Already-masked values pass through. */
+export function maskTail(value: string | null | undefined): string {
+  if (!value) return "—";
+  if (value.startsWith("•")) return value;
+  return value.length <= 4 ? "••••" : `••••${value.slice(-4)}`;
+}
+
+/** "hr.officer" → "Fatima Al Balushi" for the demo accounts; anything else is shown as recorded. */
+export function userLabel(username: string | null | undefined): string {
+  if (!username) return "—";
+  return DEMO_ACCOUNTS.find((a) => a.username === username)?.displayName ?? username;
+}
+
+const DATE_TIME = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Muscat" });
+
+/** A timestamp in Oman time: "9 Nov 2026, 14:05". */
+export function displayDateTime(value: string | null | undefined): string {
+  return value ? DATE_TIME.format(new Date(value)) : "—";
+}

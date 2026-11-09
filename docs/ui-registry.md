@@ -24,7 +24,21 @@
 
 ## Components
 
-*No shadcn-based component has been built yet; entries start in S2.*
+Built 2026-11-09 for the Version 1 demo foundation (see DECISIONS A16–A18).
+
+| Component | File | How it applies the brief |
+|---|---|---|
+| Tokens | `apps/web/src/styles.css` | Every brief value copied (light and dark), shadcn names, `@theme inline`; Inter variable; radius 0.5rem; reduced-motion and A4 print rules |
+| App shell | `components/app-shell.tsx`, `app-sidebar.tsx`, `site-header.tsx`, `nav-user.tsx` | shadcn dashboard-01 block adapted: `Sidebar` (collapsible to icons) + `SidebarInset`, breadcrumb, Ctrl+K, notifications; sidebar groups filtered by role |
+| Command palette (S-03) | `components/command-menu.tsx` | `Command` dialog: screens, live worker search, clients, sites, actions |
+| Status badge | `components/status-badge.tsx` | One badge, tones ok / due / expired / blocked (outline) / incomplete (dashed) / draft / locked / released; always icon + word; keeps the `tag` class for the first-slice e2e |
+| Data table | `components/data-table.tsx` | TanStack Table v9; sticky header, sort, paging, selection + bulk bar, skeleton rows, empty state, `/` filter, J/K/Enter |
+| Money | `components/money.tsx` | `@mms/core` formatting (decimal.js), right-aligned, tabular, 3 decimals |
+| Confirm | `components/confirm-dialog.tsx` | `AlertDialog`, button names the action and amount, optional type-to-confirm |
+| Page header, KPI card | `components/page-header.tsx`, `kpi-card.tsx` | Title + actions top-right; "Sample data" badge for demo-layer screens; number cards link to the names behind them |
+| Aceternity | `components/aceternity/*` | Approved list only: background beams (S-01), multi-step loader (payroll calculate, WPS generate), number ticker (S-32, in-house on `motion`). Colours mapped to tokens; `MotionConfig reducedMotion="user"` app-wide. Timeline and Animated Tooltip were tried and removed: both hard-code palette colours and photo avatars, so worker history (S-06) and the site crew stack (S-13) use token-based equivalents |
+
+**Deviation to confirm:** shadcn uses `--accent` for every hover/selected surface. Putting the brief's site amber there would turn every menu hover amber, against "one accent colour, sparingly". The amber lives in `--highlight` (same values as the brief's `--accent`), and `--accent` is a quiet blue-grey. Change the brief or this file, whichever the reviewer prefers.
 
 ## First audit — 2026-11-09 (`/imprint audit` on the first slice, `apps/web/src`)
 

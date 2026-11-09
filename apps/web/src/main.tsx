@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "motion/react";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/lib/theme";
 import "./styles.css";
 import { SCREENS } from "@/app/screens";
 import { AppShell, PageSkeleton } from "@/components/app-shell";
@@ -28,7 +28,7 @@ const NotFound = () => (
 // HashRouter so the same build works on a web server and inside the Tauri desktop app.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+    <ThemeProvider>
       {/* Aceternity/motion respects the OS "reduce motion" setting everywhere (TR-CLI-03). */}
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>

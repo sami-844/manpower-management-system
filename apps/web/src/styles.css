@@ -43,6 +43,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -103,6 +105,9 @@
   --sidebar-accent-foreground: oklch(0.22 0.02 255);
   --sidebar-border: oklch(0.91 0.006 250);
   --sidebar-ring: oklch(0.45 0.12 250);
+  /* Printed paper and pen, the same in both themes (sample scans, print previews). */
+  --paper: oklch(0.975 0.01 85);
+  --ink: oklch(0.27 0.04 260);
 }
 
 .dark {
@@ -183,7 +188,30 @@
     size: A4;
     margin: 14mm;
   }
-  [data-print-hide] {
+  [data-print-hide],
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"] {
     display: none !important;
+  }
+  [data-slot="sidebar-inset"] {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  /* Paper is white whatever theme is on screen. */
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.22 0.02 255);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.22 0.02 255);
+    --muted: oklch(0.96 0.005 250);
+    --muted-foreground: oklch(0.5 0.015 255);
+    --border: oklch(0.91 0.006 250);
+    --primary: oklch(0.45 0.12 250);
+    --success: oklch(0.55 0.13 150);
+    --warning: oklch(0.7 0.15 75);
+    --warning-foreground: oklch(0.27 0.06 75);
+    --destructive: oklch(0.55 0.2 27);
+    color-scheme: light;
   }
 }

@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+// Every office screen sits behind sign-in (S-01). Sign in as the HR officer through the real screen.
+test.beforeEach(async ({ page }) => {
+  await page.goto("/#/sign-in");
+  await page.getByRole("radio", { name: /HR \/ PRO officer/ }).check();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Today/ })).toBeVisible();
+});
+
 test("HR adds a worker, records documents and checks deployment", async ({ page }) => {
   const name = `E2E Worker ${Date.now()}`;
   await page.goto("/#/workers");

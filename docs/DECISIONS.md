@@ -46,10 +46,6 @@
 - **Question:** Create an empty private repository so the code can be pushed and CI can run.
 - **Ask:** Sami. **Blocks:** CI, branch protection, Windows installer builds. **Raised:** 2026-10-14.
 
-### D11 — Aceternity UI licence
-- **Question:** Confirm the licence terms for each free Aceternity component on the approved list, and whether any Pro component is wanted (paid).
-- **Ask:** Sami. **Blocks:** any Aceternity component (first: owner dashboard number ticker, S16). **Raised:** 2026-11-02.
-
 ### D12 — Version 2 versus the extension modules
 - **Question:** Version 2 took the slot of recruitment, camps and transport, welfare and biometrics (now Phase 12, from Feb 2028). Should any of them swap with the client portal or worker app?
 - **Ask:** Owner. **Blocks:** Phase 11 planning only. **Raised:** 2026-11-02.
@@ -73,3 +69,6 @@
 | A13 | Interface library | shadcn/ui with Radix primitives; Aceternity only from the approved list | Sami | 2026-11-02 |
 | A14 | Release scope | V1 office, owner, admin; V2 supervisor app, client portal, worker app | Sami | 2026-11-02 |
 | A15 | V1 attendance | Printed daily sheets entered and checked in the office; supervisor app in V2 | Sami (via A14) | 2026-11-02 |
+| A16 | D11 Aceternity UI licence | Free components only, from the Design Brief's approved list (background beams, timeline, multi-step loader, animated tooltip; the number ticker is a small in-house `motion` counter). No Pro components | Sami | 2026-11-09 |
+| A17 | Version 1 client demo | Build every V1 screen now as a demo foundation. Modules with an API (workers, documents, compliance, renewals, sites, audit) use it; the rest read a fictional, typed demo layer (`apps/web/src/demo/`) shaped like the Backend Schema and marked "Sample data" on screen, replaced module by module in each module's sprint | Sami | 2026-11-09 |
+| A18 | Where shadcn components live | `apps/web/src/components/ui` (TR-CLI-02) rather than `packages/ui` (Design Brief, CLAUDE.md file map): only one app consumes them in V1. Move to `packages/ui` when `apps/mobile` starts (V2). Tokens are in `apps/web/src/styles.css` | Claude, delegated by Sami; to confirm at the next review | 2026-11-09 |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeExpiry, displayDate, humaniseDates, tagFor, workerTag } from "./format";
+import { describeExpiry, displayDate, humaniseDates, maskTail, statusTone, tagFor, userLabel, workerTag } from "./format";
 
 describe("displayDate", () => {
   it("shows dates the way Oman offices write them", () => {
@@ -45,5 +45,23 @@ describe("humaniseDates", () => {
     expect(humaniseDates("Approved leave 2026-11-10 → 2026-11-12 overlaps the period")).toBe(
       "Approved leave 10 Nov 2026 → 12 Nov 2026 overlaps the period",
     );
+  });
+});
+
+describe("maskTail", () => {
+  it("keeps only the last four characters and passes masked values through", () => {
+    expect(maskTail("P1234567")).toBe("••••4567");
+    expect(maskTail("123")).toBe("••••");
+    expect(maskTail("••••1234")).toBe("••••1234");
+    expect(maskTail(null)).toBe("—");
+  });
+});
+
+describe("statusTone and userLabel", () => {
+  it("maps tag tones to status tones and usernames to people", () => {
+    expect(statusTone("red")).toBe("expired");
+    expect(statusTone("none")).toBe("incomplete");
+    expect(userLabel("hr.officer")).toBe("Fatima Al Balushi");
+    expect(userLabel("someone.else")).toBe("someone.else");
   });
 });

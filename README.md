@@ -26,6 +26,21 @@ clients and rate cards, rostering, daily attendance sheets and timesheets, payro
 WPS, billing, ledger, owner dashboard. Version 2 (after go-live) adds the supervisor app,
 client portal and worker app; see "Release scope" in CLAUDE.md.
 
+**Version 1 demo (2026-11-09).** Every Version 1 screen (S-01 to S-41) now exists in the
+shadcn/ui shell, so the whole product can be shown to clients. The rows above run on the
+real API; screens for the modules not built yet read a fictional demo layer
+(`apps/web/src/demo/`) and carry a **Sample data** badge (DECISIONS A17). To run the demo:
+
+```bash
+docker compose up -d && bun run db:migrate
+SEED_WORKERS=680 bun run db:seed        # once, on an empty database
+bun run dev:api                         # API on :3000 (PORT=3100 if 3000 is taken)
+bun run dev:web                         # web on :5173 (VITE_API_URL=http://localhost:3100 to match)
+```
+
+Open http://localhost:5173, choose a role on the sign-in screen, and switch roles from the
+user menu. Ctrl+K searches workers, clients, sites and screens.
+
 ## How we build (agentic engineering loop)
 
 Every step follows the JavaScript Mastery skills loop, adapted to this system:

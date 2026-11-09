@@ -40,7 +40,8 @@ async function seed() {
         fullName: `${pick(FIRST)} ${pick(LAST)}`,
         nationality: pick(COUNTRIES),
         trade: pick(TRADES),
-        status: rand() < 0.6 ? "deployed" : rand() < 0.9 ? "available" : "on_leave",
+        // Roughly a healthy labour-supply mix: ~86% deployed, ~8% on the bench, ~6% on leave.
+        status: rand() < 0.86 ? "deployed" : rand() < 0.6 ? "available" : "on_leave",
         phone: `+968 9${int(1000000, 9999999)}`,
         joinedOn: addDays(today, -int(30, 2000)),
       })

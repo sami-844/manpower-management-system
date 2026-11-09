@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { unreadCount } from "@/demo/notifications";
+import { useQuery } from "@tanstack/react-query";
+import { fetchNotifications, unreadCount as initialUnread } from "@/demo/notifications";
 
 const GROUPS = [...NAV_OVERVIEW, ...NAV_MODULES, ...NAV_SETTINGS];
 const groupOf = (path: string) => GROUPS.find((g) => g.items?.some((i) => i.path === path));
@@ -39,6 +40,9 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
   useCommandMenuShortcut(setOpen);
   const crumbs = useCrumbs();
+  // Same query as the Notifications screen, so the bell follows "mark as read".
+  const notifications = useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications });
+  const unreadCount = notifications.data?.filter((n) => !n.read).length ?? initialUnread;
 
   return (
     <header data-print-hide className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
