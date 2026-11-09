@@ -1,36 +1,57 @@
-import { StrictMode } from "react";
+import { StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import "@fontsource/atkinson-hyperlegible-next/400.css";
-import "@fontsource/atkinson-hyperlegible-next/700.css";
+import { MotionConfig } from "motion/react";
+import { ThemeProvider } from "next-themes";
 import "./styles.css";
-import { Layout } from "./components/Layout";
-import { Today } from "./pages/Today";
-import { Workers } from "./pages/Workers";
-import { WorkerFile } from "./pages/WorkerFile";
-import { Renewals } from "./pages/Renewals";
-import { Printers } from "./pages/Printers";
-import { isDesktop } from "./lib/desktop";
+import { SCREENS } from "@/app/screens";
+import { AppShell, PageSkeleton } from "@/components/app-shell";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { isDesktop } from "@/lib/desktop";
+import { SessionProvider } from "@/lib/session";
+import { SignIn } from "@/pages/shell/SignIn";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, refetchOnWindowFocus: true } } });
+
+const NotFound = () => (
+  <Empty className="m-6 border">
+    <EmptyHeader>
+      <EmptyTitle>This page doesn't exist.</EmptyTitle>
+      <EmptyDescription>Use the sidebar or press Ctrl+K to find what you need.</EmptyDescription>
+    </EmptyHeader>
+  </Empty>
+);
 
 // HashRouter so the same build works on a web server and inside the Tauri desktop app.
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Today />} />
-            <Route path="workers" element={<Workers />} />
-            <Route path="workers/:id" element={<WorkerFile />} />
-            <Route path="renewals" element={<Renewals />} />
-            {isDesktop() && <Route path="printers" element={<Printers />} />}
-            <Route path="*" element={<p className="empty">This page doesn't exist.</p>} />
-          </Route>
-        </Routes>
-      </HashRouter>
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      {/* Aceternity/motion respects the OS "reduce motion" setting everywhere (TR-CLI-03). */}
+      <MotionConfig reducedMotion="user">
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider delayDuration={200}>
+            <SessionProvider>
+              <HashRouter>
+                <Suspense fallback={<PageSkeleton />}>
+                  <Routes>
+                    <Route path="sign-in" element={<SignIn />} />
+                    <Route element={<AppShell />}>
+                      {SCREENS.filter((s) => !s.desktopOnly || isDesktop()).map((s) => (
+                        <Route key={s.path} path={s.path === "/" ? undefined : s.path.slice(1)} index={s.path === "/"} element={<s.Component />} />
+                      ))}
+                      <Route path="*" element={<NotFound />} />
+                    </Route>
+                  </Routes>
+                </Suspense>
+              </HashRouter>
+              <Toaster richColors closeButton position="bottom-right" />
+            </SessionProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </MotionConfig>
+    </ThemeProvider>
   </StrictMode>,
 );

@@ -28,13 +28,15 @@ function walk(dir: string, accept: (path: string) => boolean, out: string[] = []
     if (SKIP_DIRS.has(name)) continue;
     const path = join(dir, name);
     const s = statSync(path);
+    // Forward slashes on every OS, so the path patterns and allowlists below also hold on Windows.
+    const posix = path.replaceAll("\\", "/");
     if (s.isDirectory()) walk(path, accept, out);
-    else if (accept(path)) out.push(path);
+    else if (accept(posix)) out.push(posix);
   }
   return out;
 }
 
-const rel = (p: string) => relative(ROOT, p);
+const rel = (p: string) => relative(ROOT, p).replaceAll("\\", "/");
 const sha256 = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
 const stripSqlComments = (s: string) => s.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 

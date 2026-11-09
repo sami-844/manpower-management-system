@@ -1,22 +1,36 @@
 /**
- * Stand-in for sign-in until Amazon Cognito is wired up (Spec §2).
- * Every change the API records is attributed to this name.
+ * Stand-in for sign-in until Amazon Cognito is wired up (Spec §2, S2).
+ * Every change the API records is attributed to the signed-in username (`x-user`).
  */
+import { DEMO_ACCOUNTS, type DemoAccount } from "./roles";
+
 const KEY = "mms.user";
 
-export const DEMO_USERS = ["hr.officer", "pro.officer", "ops.manager", "payroll.officer"] as const;
+export const DEMO_USERS = DEMO_ACCOUNTS.map((a) => a.username);
 
-export function currentUser(): string {
+function read(): string | null {
   try {
-    return localStorage.getItem(KEY) ?? DEMO_USERS[0];
+    return localStorage.getItem(KEY);
   } catch {
-    return DEMO_USERS[0];
+    return null;
   }
 }
 
-export function setCurrentUser(user: string): void {
+/** Username sent to the API. Falls back to the HR officer so tests and the first slice keep working. */
+export function currentUser(): string {
+  return read() ?? "hr.officer";
+}
+
+/** The signed-in demo account, or null when nobody has signed in yet. */
+export function currentAccount(): DemoAccount | null {
+  const username = read();
+  return DEMO_ACCOUNTS.find((a) => a.username === username) ?? null;
+}
+
+export function setCurrentUser(user: string | null): void {
   try {
-    localStorage.setItem(KEY, user);
+    if (user === null) localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, user);
   } catch {
     /* storage unavailable: keep the default */
   }
