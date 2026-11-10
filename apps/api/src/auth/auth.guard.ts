@@ -80,9 +80,6 @@ export class AuthGuard implements CanActivate {
       if (principal.isPasswordChangeRequired) {
         throw problem(HttpStatus.FORBIDDEN, "PASSWORD_CHANGE_REQUIRED", "Change your temporary password first.");
       }
-      if (this.config.requireTotp && !principal.hasTotp) {
-        throw problem(HttpStatus.FORBIDDEN, "TWO_FACTOR_SETUP_REQUIRED", "Set up your authenticator app first.");
-      }
       if (principal.entityId === null) {
         throw problem(
           HttpStatus.FORBIDDEN,
@@ -100,14 +97,22 @@ export class AuthGuard implements CanActivate {
 }
 
 /**
- * Runs every signed-in request in one transaction as `mms_app`, with the entity and user set,
- * so PostgreSQL row-level security scopes every query (TR-SEC-05). Public routes run unscoped.
+ * Runs every permission route in one transaction as `mms_app`, with the entity and user set,
+ * so PostgreSQL row-level security scopes every query (TR-SEC-05). Public routes run unscoped, and
+ * so do the `@SignedIn` routes (a user's own account: me, password, two-factor): they touch no
+ * company data and do their sign-in bookkeeping on the base connection, so holding a request
+ * transaction as well would take two pooled connections each, and ten at once would freeze the pool.
  */
 @Injectable()
 export class RequestScopeInterceptor implements NestInterceptor {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    @Inject(Reflector) private readonly reflector: Reflector,
+  ) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const access = this.reflector.getAllAndOverride<Access | undefined>(ACCESS, [ctx.getHandler(), ctx.getClass()]);
+    if (access?.kind !== "permission") return next.handle();
     const auth = ctx.switchToHttp().getRequest<AuthedRequest>().auth;
     if (!auth?.entityId) return next.handle();
     return from(this.db.inRequestScope({ entityId: auth.entityId, userId: auth.userId }, () => lastValueFrom(next.handle(), { defaultValue: undefined })));

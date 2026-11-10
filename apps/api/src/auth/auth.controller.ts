@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from "@nestjs
 import type { Request, Response } from "express";
 import { parse } from "../common/validation";
 import { bearerToken, clientInfo, type AuthedRequest } from "./auth.guard";
-import { AuthService, changePasswordSchema, signInSchema, totpCodeSchema, type Session } from "./auth.service";
+import { AuthService, changePasswordSchema, signInSchema, totpChangeSchema, type Session } from "./auth.service";
 import { AUTH_CONFIG, REFRESH_COOKIE, REFRESH_COOKIE_PATH, type AuthConfig } from "./config";
 import { Public, SignedIn } from "./permissions";
 
@@ -92,6 +92,13 @@ export class AuthController {
   @Post("2fa/confirm")
   @HttpCode(200)
   confirmTotp(@Body() body: unknown, @Req() req: AuthedRequest) {
-    return this.auth.confirmTotpSetup(req.auth!, parse(totpCodeSchema, body).code);
+    return this.auth.confirmTotpSetup(req.auth!, parse(totpChangeSchema, body), clientInfo(req));
+  }
+
+  @SignedIn()
+  @Post("2fa/disable")
+  @HttpCode(200)
+  disableTotp(@Body() body: unknown, @Req() req: AuthedRequest) {
+    return this.auth.disableTotp(req.auth!, parse(totpChangeSchema, body), clientInfo(req));
   }
 }

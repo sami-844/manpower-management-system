@@ -1,5 +1,5 @@
 /**
- * Every Version 1 screen (App Flow "Screen inventory", S-01 … S-45) in one table. The router,
+ * Every Version 1 screen (App Flow "Screen inventory", S-01 … S-46) in one table. The router,
  * sidebar, breadcrumbs and Ctrl+K palette are all built from it, so adding a screen is one line.
  */
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
@@ -86,6 +86,7 @@ export const SCREENS: Screen[] = [
   { id: "S-31", path: "/supplier-bills", title: "Supplier bills", area: "finance", Component: page(() => import("@/pages/finance/SupplierBills"), "SupplierBills"), keywords: "camp rent fuel visa fees" },
 
   // Admin
+  { id: "S-46", path: "/settings/account", title: "My account", area: "today", Component: page(() => import("@/pages/settings/Account"), "Account"), keywords: "profile two-factor 2fa authenticator security password" },
   { id: "S-36", path: "/admin/users", title: "Users & roles", area: "admin", Component: page(() => import("@/pages/admin/Users"), "Users"), keywords: "accounts permissions" },
   { id: "S-37", path: "/admin/rules", title: "Rule tables", area: "admin", Component: page(() => import("@/pages/admin/Rules"), "Rules"), keywords: "overtime leave legal versions" },
   { id: "S-38", path: "/admin/audit", title: "Audit & health", area: "admin", Component: page(() => import("@/pages/admin/Audit"), "Audit"), keywords: "chain integration log" },

@@ -1,5 +1,6 @@
 // S-01 sign-in against the API's own authentication (non-demo builds): password, then the
-// authenticator code when asked, then the first-sign-in steps (new password, two-factor set-up).
+// authenticator code when asked, then the one first-sign-in step (a new password). Two-factor is
+// optional and set up in S-46 My account, never during sign-in (A31).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -124,14 +125,13 @@ describe("SignIn (S-01)", () => {
     expect(screen.getByLabelText("Authenticator code")).toHaveValue("");
   });
 
-  it("makes a first-time user change the temporary password, showing the policy and the server's problems", async () => {
+  it("makes a first-time user change the temporary password, then opens the app without asking for two-factor", async () => {
     routes["/api/auth/refresh"] = [() => grant("change_password")];
     routes["/api/auth/me"] = [() => me("change_password")];
     routes["/api/auth/change-password"] = [
       () => json(400, { code: "PASSWORD_POLICY", message: "Choose a different password.", problems: ["Must not contain the username"] }),
-      () => json(200, { next: "setup_2fa" }),
+      () => json(200, { next: null }),
     ];
-    routes["/api/auth/2fa/setup"] = [() => json(200, { secret: "JBSWY3DPEHPK3PXP", otpauthUrl: "otpauth://totp/MMS:hr.officer?secret=JBSWY3DPEHPK3PXP&issuer=MMS" })];
     const u = renderSignIn();
 
     expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeInTheDocument();
@@ -156,32 +156,9 @@ describe("SignIn (S-01)", () => {
     await u.clear(screen.getByLabelText("Confirm new password"));
     await u.type(screen.getByLabelText("Confirm new password"), "four quiet harbour lamps");
     await u.click(screen.getByRole("button", { name: "Save new password" }));
-    expect(await screen.findByRole("heading", { name: "Set up two-factor sign-in" })).toBeInTheDocument();
-    expect(calls.find((c) => c.path === "/api/auth/change-password")?.body).toEqual({ currentPassword: "Temp-Pass-0001", newPassword: "hr.officer is my name ok" });
-  });
-
-  it("sets up the authenticator app with a QR code and a typed key, then opens the app", async () => {
-    routes["/api/auth/refresh"] = [() => grant("setup_2fa")];
-    routes["/api/auth/me"] = [() => me("setup_2fa")];
-    routes["/api/auth/2fa/setup"] = [() => json(200, { secret: "JBSWY3DPEHPK3PXPJBSWY3DP", otpauthUrl: "otpauth://totp/MMS:hr.officer?secret=JBSWY3DPEHPK3PXPJBSWY3DP&issuer=MMS" })];
-    routes["/api/auth/2fa/confirm"] = [() => json(400, { code: "OTP_INVALID", message: "Wrong." }), () => json(200, { next: null })];
-    const u = renderSignIn();
-
-    expect(await screen.findByRole("heading", { name: "Set up two-factor sign-in" })).toBeInTheDocument();
-    expect(await screen.findByRole("img", { name: /QR code/ })).toBeInTheDocument();
-    expect(screen.getByText("JBSW Y3DP EHPK 3PXP JBSW Y3DP")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Open in an authenticator app/ })).toHaveAttribute("href", expect.stringMatching(/^otpauth:\/\/totp\//));
-
-    const code = screen.getByLabelText(/Code from the app/);
-    expect(code).toHaveAttribute("inputmode", "numeric");
-    expect(code).toHaveAttribute("autocomplete", "one-time-code");
-    await u.type(code, "111111");
-    await u.click(screen.getByRole("button", { name: "Turn on two-factor" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("That code didn't match.");
-
-    await u.type(screen.getByLabelText(/Code from the app/), "222222");
-    await u.click(screen.getByRole("button", { name: "Turn on two-factor" }));
     expect(await screen.findByRole("heading", { name: "Today" })).toBeInTheDocument();
-    expect(calls.filter((c) => c.path === "/api/auth/2fa/confirm").map((c) => c.body)).toEqual([{ code: "111111" }, { code: "222222" }]);
+    expect(calls.find((c) => c.path === "/api/auth/change-password")?.body).toEqual({ currentPassword: "Temp-Pass-0001", newPassword: "hr.officer is my name ok" });
+    expect(screen.queryByText(/two-factor/i)).not.toBeInTheDocument();
+    expect(calls.some((c) => c.path.startsWith("/api/auth/2fa"))).toBe(false);
   });
 });

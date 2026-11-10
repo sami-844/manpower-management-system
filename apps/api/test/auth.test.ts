@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { MetadataScanner, ModulesContainer, Reflector } from "@nestjs/core";
 import { asc, eq, sql } from "drizzle-orm";
+import { loadAuthConfig } from "../src/auth/config";
 import { totpCode } from "../src/auth/crypto";
 import { ACCESS, PERMISSIONS } from "../src/auth/permissions";
 import { auditEvents, loginAttempts, permissions, userSessions, users } from "../src/db/schema";
@@ -111,8 +112,8 @@ describe("sign in", () => {
   });
 });
 
-describe("first sign-in: temporary password, then the authenticator", () => {
-  it("allows nothing but set-up until both are done", async () => {
+describe("first sign-in: the temporary password only; two-factor is optional (A31)", () => {
+  it("allows nothing until the temporary password is replaced, then opens without asking for two-factor", async () => {
     const u = await freshUser(["hr_pro"], { mustChangePassword: true, totp: false });
     const first = await login(u);
     expect(first.body.next).toBe("change_password");
@@ -132,24 +133,13 @@ describe("first sign-in: temporary password, then the authenticator", () => {
     expect((await change(u.password, u.password)).body.code).toBe("PASSWORD_REUSED");
     const changed = await change(u.password, "a perfectly long passphrase");
     expect(changed.status).toBe(200);
-    expect(changed.body.next).toBe("setup_2fa");
-
-    const stillBlocked = await ctx.api(null).get("/api/workers").set(bearer(token));
-    expect(stillBlocked.body.code).toBe("TWO_FACTOR_SETUP_REQUIRED");
-
-    const setup = await ctx.api(null).post("/api/auth/2fa/setup").set(bearer(token));
-    expect(setup.body.otpauthUrl).toStartWith("otpauth://totp/");
-    expect((await ctx.api(null).post("/api/auth/2fa/confirm").set(bearer(token)).send({ code: "000000" })).body.code).toBe("OTP_INVALID");
-    const confirmed = await ctx
-      .api(null)
-      .post("/api/auth/2fa/confirm")
-      .set(bearer(token))
-      .send({ code: totpCode(setup.body.secret, Math.floor(ctx.clock.now() / 30_000)) });
-    expect(confirmed.body).toEqual({ next: null });
+    expect(changed.body).toEqual({ next: null });
 
     expect((await ctx.api(null).get("/api/workers").set(bearer(token))).status).toBe(200);
+    expect((await ctx.api(null).get("/api/auth/me").set(bearer(token))).body).toMatchObject({ next: null, twoFactor: false });
     const again = await ctx.api(null).post("/api/auth/login").send({ username: u.username, password: "a perfectly long passphrase" });
-    expect(again.body.code).toBe("OTP_REQUIRED");
+    expect(again.status).toBe(200);
+    expect(again.body.next).toBeNull();
   });
 
   it("ends the user's other sessions when the password changes", async () => {
@@ -164,6 +154,128 @@ describe("first sign-in: temporary password, then the authenticator", () => {
     expect(res.status).toBe(200);
     expect((await ctx.api(null).get("/api/workers").set(bearer(a.accessToken))).status).toBe(200);
     expect((await ctx.api(null).get("/api/workers").set(bearer(b.accessToken))).body.code).toBe("SESSION_ENDED");
+  });
+});
+
+describe("two-factor in settings (A31): optional, on and off by the user", () => {
+  const me = (token: string) => ctx.api(null).get("/api/auth/me").set(bearer(token));
+  const turnOff = (token: string, body: Record<string, unknown>) => ctx.api(null).post("/api/auth/2fa/disable").set(bearer(token)).send(body);
+  const audit = async (userId: string) =>
+    (await ctx.db.base.select().from(auditEvents).where(eq(auditEvents.subjectId, userId)).orderBy(asc(auditEvents.id))).map((e) => ({
+      action: e.action,
+      before: (e.before as { hasTotp?: boolean } | null)?.hasTotp,
+      after: (e.after as { hasTotp?: boolean } | null)?.hasTotp,
+    }));
+
+  it("turns on with the password and a first code from the app, ends other sessions, and from then on sign-in asks for a code", async () => {
+    const u = await freshUser(["hr_pro"], { totp: false });
+    const { accessToken } = await signIn(ctx, u);
+    const other = await signIn(ctx, u);
+    expect((await me(accessToken)).body).toMatchObject({ next: null, twoFactor: false });
+
+    const setup = await ctx.api(null).post("/api/auth/2fa/setup").set(bearer(accessToken));
+    expect(setup.body.otpauthUrl).toStartWith("otpauth://totp/");
+    const confirm = (body: Record<string, unknown>) => ctx.api(null).post("/api/auth/2fa/confirm").set(bearer(accessToken)).send(body);
+    const firstCode = () => totpCode(setup.body.secret, Math.floor(ctx.clock.now() / 30_000));
+    // A session alone is not enough: someone holding a stolen one could otherwise lock the owner out with their own phone.
+    expect((await confirm({ code: firstCode() })).status).toBe(400);
+    expect((await confirm({ password: "not-the-password", code: firstCode() })).body.code).toBe("CURRENT_PASSWORD_WRONG");
+    expect((await confirm({ password: u.password, code: "000000" })).body.code).toBe("OTP_INVALID");
+    expect((await me(accessToken)).body.twoFactor).toBe(false);
+    const [counted] = await ctx.db.base.select({ n: users.failedSignIns }).from(users).where(eq(users.id, u.id));
+    expect(counted!.n).toBe(1); // the wrong password counts toward the lockout; a mistyped first code does not
+
+    expect((await confirm({ password: u.password, code: firstCode() })).body).toEqual({ next: null });
+    expect((await me(accessToken)).body.twoFactor).toBe(true);
+    expect((await me(other.accessToken)).body.code).toBe("SESSION_ENDED");
+    expect((await ctx.api(null).post("/api/auth/2fa/setup").set(bearer(accessToken))).body.code).toBe("TWO_FACTOR_ALREADY_ON");
+    expect((await login(u)).body.code).toBe("OTP_REQUIRED");
+    expect(await audit(u.id)).toContainEqual({ action: "auth.two_factor_on", before: false, after: true });
+  });
+
+  it("counts wrong passwords when turning on toward the lockout", async () => {
+    const u = await freshUser(["hr_pro"], { totp: false });
+    const { accessToken } = await signIn(ctx, u);
+    const setup = await ctx.api(null).post("/api/auth/2fa/setup").set(bearer(accessToken));
+    const code = totpCode(setup.body.secret, Math.floor(ctx.clock.now() / 30_000));
+    for (let i = 0; i < 5; i++) await ctx.api(null).post("/api/auth/2fa/confirm").set(bearer(accessToken)).send({ password: "not-the-password", code });
+    const locked = await ctx.api(null).post("/api/auth/2fa/confirm").set(bearer(accessToken)).send({ password: u.password, code });
+    expect(locked.status).toBe(423);
+    expect((await me(accessToken)).body.twoFactor).toBe(false);
+  });
+
+  it("turns off only with the password and a fresh code, keeps the session, and records it", async () => {
+    const u = await freshUser();
+    const { accessToken } = await signIn(ctx, u);
+    const [row] = await ctx.db.base.select({ last: users.totpLastStep }).from(users).where(eq(users.id, u.id));
+    const usedCode = totpCode(u.totpSecret!, row!.last!);
+
+    expect((await turnOff(accessToken, { code: await nextOtp(ctx, u) })).status).toBe(400);
+    expect((await turnOff(accessToken, { password: "not-the-password", code: await nextOtp(ctx, u) })).body.code).toBe("CURRENT_PASSWORD_WRONG");
+    expect((await turnOff(accessToken, { password: u.password, code: "000000" })).body.code).toBe("OTP_INVALID");
+    expect((await turnOff(accessToken, { password: u.password, code: usedCode })).body.code).toBe("OTP_INVALID");
+    expect((await me(accessToken)).body.twoFactor).toBe(true);
+
+    const off = await turnOff(accessToken, { password: u.password, code: await nextOtp(ctx, u) });
+    expect(off.status).toBe(200);
+    expect(off.body).toEqual({ twoFactor: false });
+
+    const [after] = await ctx.db.base.select().from(users).where(eq(users.id, u.id));
+    expect([after!.totpSecretSealed, after!.totpPendingSealed, after!.totpLastStep]).toEqual([null, null, null]);
+    expect((await me(accessToken)).body.twoFactor).toBe(false);
+    expect((await ctx.api(null).get("/api/workers").set(bearer(accessToken))).status).toBe(200);
+    expect((await login(u)).status).toBe(200);
+    expect((await turnOff(accessToken, { password: u.password, code: "123456" })).body.code).toBe("TWO_FACTOR_OFF");
+    expect(await audit(u.id)).toContainEqual({ action: "auth.two_factor_off", before: true, after: false });
+  });
+
+  it("counts wrong passwords and codes when turning off toward the lockout", async () => {
+    const u = await freshUser();
+    const { accessToken } = await signIn(ctx, u);
+    for (let i = 0; i < 3; i++) await turnOff(accessToken, { password: "not-the-password", code: "000000" });
+    for (let i = 0; i < 2; i++) await turnOff(accessToken, { password: u.password, code: "000000" });
+    const locked = await turnOff(accessToken, { password: u.password, code: await nextOtp(ctx, u) });
+    expect(locked.status).toBe(423);
+    expect(locked.body.code).toBe("ACCOUNT_LOCKED");
+    expect((await login(u, await nextOtp(ctx, u))).status).toBe(423);
+    expect((await me(accessToken)).body.twoFactor).toBe(true);
+  });
+
+  it("checks at most 5 of 12 simultaneous wrong tries to turn off, then refuses", async () => {
+    const u = await freshUser();
+    const { accessToken } = await signIn(ctx, u);
+    const results = await Promise.all(Array.from({ length: 12 }, () => turnOff(accessToken, { password: "not-the-password", code: "000000" })));
+    const checked = results.filter((r) => r.status === 400).length;
+    expect(checked).toBeLessThanOrEqual(5);
+    expect(results.filter((r) => r.status === 423).length).toBe(12 - checked);
+    expect((await turnOff(accessToken, { password: u.password, code: await nextOtp(ctx, u) })).status).toBe(423);
+    expect((await me(accessToken)).body.twoFactor).toBe(true);
+  });
+
+  it("is already off after the admin's reset, and when set-up was started but never confirmed", async () => {
+    const u = await freshUser();
+    const { accessToken } = await signIn(ctx, u);
+    await ctx.api("sys.admin").post(`/api/admin/users/${u.id}/reset-2fa`);
+    const again = await signIn(ctx, { ...u, totpSecret: null });
+    expect((await turnOff(again.accessToken, { password: u.password, code: "123456" })).body.code).toBe("TWO_FACTOR_OFF");
+    expect((await ctx.api(null).post("/api/auth/2fa/setup").set(bearer(again.accessToken))).status).toBe(200);
+    expect((await turnOff(again.accessToken, { password: u.password, code: "123456" })).body.code).toBe("TWO_FACTOR_OFF");
+    expect((await me(accessToken)).body.code).toBe("SESSION_ENDED"); // the reset ended the earlier session
+  });
+
+  it("ignores the old AUTH_REQUIRE_TOTP switch, in production too", () => {
+    const key = (b: number) => Buffer.alloc(32, b).toString("base64");
+    const prod = { NODE_ENV: "production", AUTH_ACCESS_KEY: key(1), AUTH_SEAL_KEY: key(2), WEB_ORIGIN: "https://mms.example" };
+    expect(() => loadAuthConfig({ ...prod, AUTH_REQUIRE_TOTP: "false" })).not.toThrow();
+    expect(loadAuthConfig({ ...prod, AUTH_REQUIRE_TOTP: "false" })).not.toHaveProperty("requireTotp");
+  });
+
+  it("waits until the temporary password is replaced", async () => {
+    const u = await freshUser(["hr_pro"], { mustChangePassword: true });
+    const { accessToken } = await signIn(ctx, u);
+    const res = await turnOff(accessToken, { password: u.password, code: await nextOtp(ctx, u) });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe("PASSWORD_CHANGE_REQUIRED");
   });
 });
 

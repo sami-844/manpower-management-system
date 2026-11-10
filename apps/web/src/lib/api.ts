@@ -45,8 +45,8 @@ export interface AuthUser {
   username: string;
   displayName: string;
 }
-/** A first-sign-in step the user still owes before the app opens. */
-export type NextStep = "change_password" | "setup_2fa" | null;
+/** A first-sign-in step the user still owes before the app opens. Two-factor is optional, in S-46 (A31). */
+export type NextStep = "change_password" | null;
 export interface AuthGrant {
   accessToken: string;
   expiresIn: number;

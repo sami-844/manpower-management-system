@@ -21,8 +21,9 @@ are in [CLAUDE.md](CLAUDE.md).
 | Audit | Every change is recorded with who, when, before and after, in a hash-chained log the database refuses to edit |
 | Desktop | Windows app wrapping the same screens; prints batches to a chosen printer with no dialog |
 
-Sign-in (DECISIONS A25): username, password and an authenticator app, with first-sign-in
-password change and authenticator set-up; every API route checks a permission; PostgreSQL
+Sign-in (DECISIONS A25, A31): username and password, with a first-sign-in password change;
+two-factor (an authenticator app) is optional, turned on or off by each person in My account
+(S-46); every API route checks a permission; PostgreSQL
 row-level security scopes data by company. Sponsors and outsourced workers (PRD 4.18):
 API built, screens to follow (DEFERRED X13).
 

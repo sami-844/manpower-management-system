@@ -1,7 +1,7 @@
 /**
  * Creating accounts outside the API: the very first admin (`bun run auth:bootstrap-admin`) and the
  * fictional demo users (`bun run db:seed-users`). Each prints a temporary password once; the person
- * must replace it and set up an authenticator app at first sign-in. Every account creation is audited.
+ * must replace it at first sign-in; two-factor is optional, turned on in My account (A31). Every account creation is audited.
  */
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { AuditService } from "../audit/audit.service";
@@ -87,7 +87,7 @@ async function main(command: string | undefined) {
         const r = await provisionUser(db, { ...u, entityId, createdBy: "system:seed" });
         console.log(r.created ? `${u.username.padEnd(16)} ${r.temporaryPassword}` : `${u.username.padEnd(16)} (already exists, unchanged)`);
       }
-      console.log("Each person changes the temporary password and sets up an authenticator app at first sign-in.");
+      console.log("Each person changes the temporary password at first sign-in, and can turn on two-factor in My account.");
     } else {
       console.error("Usage: accounts.ts bootstrap-admin [username] | seed-users");
       process.exitCode = 1;

@@ -31,7 +31,11 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(256),
   newPassword: z.string().min(1).max(256),
 });
-export const totpCodeSchema = z.object({ code: z.string().trim().min(1).max(10) });
+/** Turning two-factor on or off: the password and a code, so a session alone can do neither (A31). */
+export const totpChangeSchema = z.object({
+  password: z.string().min(1).max(256),
+  code: z.string().trim().min(1).max(10),
+});
 
 /** Who is acting, resolved from the access token on every request. */
 export interface Principal {
@@ -48,7 +52,8 @@ export interface Principal {
   hasTotp: boolean;
 }
 
-export type NextStep = "change_password" | "setup_2fa" | null;
+/** What a user owes before the app opens: only a temporary password; two-factor is optional (A31). */
+export type NextStep = "change_password" | null;
 
 export interface SignedInUser {
   id: string;
@@ -110,10 +115,8 @@ export class AuthService {
     return new Date(this.clock.now());
   }
 
-  nextStep(u: Pick<UserRow, "isPasswordChangeRequired" | "totpSecretSealed">): NextStep {
-    if (u.isPasswordChangeRequired) return "change_password";
-    if (this.config.requireTotp && u.totpSecretSealed === null) return "setup_2fa";
-    return null;
+  nextStep(u: Pick<UserRow, "isPasswordChangeRequired">): NextStep {
+    return u.isPasswordChangeRequired ? "change_password" : null;
   }
 
   // ------------------------------------------------------------------------------------------
@@ -313,7 +316,8 @@ export class AuthService {
       entityChoices: p.entityChoices,
       roles: p.roles,
       permissions: [...p.permissions].sort(),
-      next: this.nextStep({ isPasswordChangeRequired: p.isPasswordChangeRequired, totpSecretSealed: p.hasTotp ? "set" : null }),
+      next: this.nextStep(p),
+      twoFactor: p.hasTotp,
     };
   }
 
@@ -416,7 +420,7 @@ export class AuthService {
     if (p.isPasswordChangeRequired) {
       throw problem(HttpStatus.FORBIDDEN, "PASSWORD_CHANGE_REQUIRED", "Change your temporary password first.");
     }
-    if (p.hasTotp) throw problem(HttpStatus.CONFLICT, "TWO_FACTOR_ALREADY_ON", "Two-factor is already on. The system admin can reset it.");
+    if (p.hasTotp) throw problem(HttpStatus.CONFLICT, "TWO_FACTOR_ALREADY_ON", "Two-factor is already on. Turn it off first to move it to another phone.");
     const secret = newTotpSecret();
     await this.base
       .update(users)
@@ -425,19 +429,35 @@ export class AuthService {
     return { secret, otpauthUrl: otpauthUrl(this.config.issuerLabel, p.username, secret) };
   }
 
-  async confirmTotpSetup(p: Principal, code: string): Promise<{ next: NextStep }> {
+  /**
+   * The password is checked like a sign-in (a wrong one counts toward the lockout): without it, a
+   * stolen session could attach the thief's phone and lock the owner out. A mistyped first code is
+   * not a guess at anything secret, so it does not count. Every other session ends, as on a password change.
+   */
+  async confirmTotpSetup(p: Principal, input: z.infer<typeof totpChangeSchema>, client: ClientInfo): Promise<{ next: NextStep }> {
     const [user] = await this.base.select().from(users).where(eq(users.id, p.userId));
     if (!user?.totpPendingSealed) throw problem(HttpStatus.CONFLICT, "NO_PENDING_SETUP", "Start the authenticator set-up first.");
     if (user.totpSecretSealed) throw problem(HttpStatus.CONFLICT, "TWO_FACTOR_ALREADY_ON", "Two-factor is already on.");
-    const step = verifyTotp(this.openSecret(user.totpPendingSealed), code, this.clock.now(), null);
+    if (!(await this.reserveTry(user.id))) throw await this.lockedProblem(user.id);
+    if (!(await verifyPassword(input.password, user.passwordHash))) {
+      await this.failTry(user, client, await this.openAttempt(user.username, client), "bad_password_two_factor_on");
+      throw problem(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_WRONG", "Your password is not right.");
+    }
+    await this.releaseTry(user.id);
+    const step = verifyTotp(this.openSecret(user.totpPendingSealed), input.code, this.clock.now(), null);
     if (step === null) throw problem(HttpStatus.BAD_REQUEST, "OTP_INVALID", "That code is not right. Check the time on your phone and try the next code.");
     const now = this.now();
     return this.base.transaction(async (tx) => {
       const [after] = await tx
         .update(users)
         .set({ totpSecretSealed: user.totpPendingSealed, totpPendingSealed: null, totpLastStep: step, updatedAt: now, updatedBy: user.username })
-        .where(eq(users.id, user.id))
+        .where(and(eq(users.id, user.id), isNull(users.totpSecretSealed), eq(users.totpPendingSealed, user.totpPendingSealed!)))
         .returning();
+      if (!after) throw problem(HttpStatus.CONFLICT, "NO_PENDING_SETUP", "The set-up changed meanwhile. Start it again.");
+      await tx
+        .update(userSessions)
+        .set({ revokedAt: now, revokeReason: "two_factor_on" })
+        .where(and(eq(userSessions.userId, user.id), ne(userSessions.id, p.sessionId), isNull(userSessions.revokedAt)));
       await this.audit.record(tx, {
         actor: user.username,
         action: "auth.two_factor_on",
@@ -448,6 +468,48 @@ export class AuthService {
         entityId: await this.homeEntity(user.id),
       });
       return { next: this.nextStep(after!) };
+    });
+  }
+
+  /**
+   * Turning two-factor off (A31) needs the password and a fresh code, both checked like a sign-in:
+   * each wrong one counts toward the lockout, and a code works once. A stolen session alone is not enough.
+   */
+  async disableTotp(p: Principal, input: z.infer<typeof totpChangeSchema>, client: ClientInfo): Promise<{ twoFactor: false }> {
+    if (p.isPasswordChangeRequired) {
+      throw problem(HttpStatus.FORBIDDEN, "PASSWORD_CHANGE_REQUIRED", "Change your temporary password first.");
+    }
+    const [user] = await this.base.select().from(users).where(eq(users.id, p.userId));
+    if (!user) throw sessionEnded();
+    if (!user.totpSecretSealed) throw problem(HttpStatus.CONFLICT, "TWO_FACTOR_OFF", "Two-factor is already off.");
+    if (!(await this.reserveTry(user.id))) throw await this.lockedProblem(user.id);
+    if (!(await verifyPassword(input.password, user.passwordHash))) {
+      await this.failTry(user, client, await this.openAttempt(user.username, client), "bad_password_two_factor_off");
+      throw problem(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_WRONG", "Your password is not right.");
+    }
+    const step = verifyTotp(this.openSecret(user.totpSecretSealed), input.code, this.clock.now(), user.totpLastStep);
+    if (step === null || !(await this.claimTotpStep(this.base, user.id, step))) {
+      await this.failTry(user, client, await this.openAttempt(user.username, client), "bad_otp_two_factor_off");
+      throw problem(HttpStatus.BAD_REQUEST, "OTP_INVALID", "That code is wrong or has already been used.");
+    }
+    await this.releaseTry(user.id);
+    const now = this.now();
+    return this.base.transaction(async (tx) => {
+      const [after] = await tx
+        .update(users)
+        .set({ totpSecretSealed: null, totpPendingSealed: null, totpLastStep: null, updatedAt: now, updatedBy: user.username })
+        .where(eq(users.id, user.id))
+        .returning();
+      await this.audit.record(tx, {
+        actor: user.username,
+        action: "auth.two_factor_off",
+        subjectType: "user",
+        subjectId: user.id,
+        before: publicUser(user),
+        after: publicUser(after!),
+        entityId: await this.homeEntity(user.id),
+      });
+      return { twoFactor: false as const };
     });
   }
 

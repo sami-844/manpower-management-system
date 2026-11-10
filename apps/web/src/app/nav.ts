@@ -18,6 +18,7 @@ import {
   PrinterIcon,
   ReceiptTextIcon,
   Settings2Icon,
+  UserRoundCogIcon,
   UsersRoundIcon,
   WalletCardsIcon,
 } from "lucide-react";
@@ -56,6 +57,8 @@ export const NAV_MODULES: NavGroup[] = [
 ];
 
 export const NAV_SETTINGS: NavGroup[] = [
+  // Every signed-in user's own settings, two-factor among them (S-46, A31).
+  { title: "My account", icon: UserRoundCogIcon, area: "today", path: "/settings/account" },
   { title: "Settings", icon: Settings2Icon, area: "admin", items: [{ title: "Users & roles", path: "/admin/users" }, { title: "Rule tables", path: "/admin/rules" }, { title: "Audit & health", path: "/admin/audit" }] },
   { title: "Printers", icon: PrinterIcon, area: "desktop", path: "/printers" },
 ];

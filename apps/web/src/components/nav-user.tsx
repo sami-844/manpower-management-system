@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { BellIcon, ChevronsUpDownIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon, UserRoundCogIcon } from "lucide-react";
+import { BellIcon, ChevronsUpDownIcon, LogOutIcon, MonitorIcon, MoonIcon, ShieldCheckIcon, SunIcon, UserRoundCogIcon } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -62,6 +62,10 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => navigate("/settings/account")}>
+                <ShieldCheckIcon />
+                My account
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => navigate("/notifications")}>
                 <BellIcon />
                 Notifications

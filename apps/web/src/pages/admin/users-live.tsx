@@ -350,9 +350,9 @@ function RowActions({ u }: { u: AdminUser }) {
     },
     "reset-2fa": {
       title: `Reset two-factor for ${u.displayName}?`,
-      description: "Use this when they've lost or replaced their phone. They set up an authenticator app again the next time they sign in.",
+      description: "Use this when they've lost or replaced their phone. Their sign-in stops asking for a code; they can turn two-factor on again with the new phone from My account.",
       action: "Reset two-factor",
-      run: () => void act("reset-2fa", `Two-factor reset for ${u.displayName}`, "They set it up again at next sign-in."),
+      run: () => void act("reset-2fa", `Two-factor reset for ${u.displayName}`, "They can turn it on again from My account."),
     },
     disable: {
       title: `Disable ${u.displayName}'s account?`,

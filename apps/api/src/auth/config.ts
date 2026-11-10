@@ -13,7 +13,6 @@ export interface AuthConfig {
   ipFailureLimit: number;
   ipWindowSec: number;
   requestsPerMinute: number;
-  requireTotp: boolean;
   cookieSecure: boolean;
   issuerLabel: string;
 }
@@ -53,9 +52,8 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
   const sealKey = readKey(env, "AUTH_SEAL_KEY", DEV_SEAL_KEY, production);
   if (accessKey.equals(sealKey)) throw new Error("AUTH_ACCESS_KEY and AUTH_SEAL_KEY must differ");
 
-  const requireTotp = flag(env, "AUTH_REQUIRE_TOTP", true);
+  // Two-factor is each user's choice in Settings (A31); the old AUTH_REQUIRE_TOTP switch is ignored.
   const cookieSecure = flag(env, "AUTH_COOKIE_SECURE", true);
-  if (production && !requireTotp) throw new Error("AUTH_REQUIRE_TOTP cannot be false in production (TR-SEC-01)");
   if (production && !cookieSecure) throw new Error("AUTH_COOKIE_SECURE cannot be false in production");
 
   return {
@@ -70,7 +68,6 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
     ipFailureLimit: 20,
     ipWindowSec: 15 * 60,
     requestsPerMinute: 600,
-    requireTotp,
     cookieSecure,
     issuerLabel: env.AUTH_ISSUER_LABEL ?? "Manpower MMS",
   };

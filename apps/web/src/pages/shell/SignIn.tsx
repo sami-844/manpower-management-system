@@ -1,19 +1,20 @@
 /**
  * S-01 Sign in. Live builds use the API's own sign-in (A25): username and password, then the
- * authenticator code when the account has two-factor on, then the first-sign-in steps the API
- * asks for (`next`): choose a new password, set up the authenticator app. The app shell opens
- * only when nothing is owed. The hosted demo (`--mode demo`) keeps the role picker.
+ * authenticator code when the account has two-factor on, then the one first-sign-in step the API
+ * may ask for (`next`): choose a new password. Two-factor is optional and set up in S-46 My
+ * account, never here (A31). The app shell opens only when nothing is owed. The hosted demo
+ * (`--mode demo`) keeps the role picker.
  * Background Beams is the one Aceternity piece the Design Brief allows here (first impression,
  * no working content); motion respects prefers-reduced-motion.
  */
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { encode } from "uqr";
-import { AlertCircleIcon, ArrowRightIcon, HardHatIcon, ShieldCheckIcon } from "lucide-react";
+import { ArrowRightIcon, HardHatIcon, ShieldCheckIcon } from "lucide-react";
 import { BackgroundBeams } from "@/components/aceternity/background-beams";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CodeInput, ErrorAlert, signInMessage } from "@/components/auth-parts";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -26,7 +27,6 @@ import { useSession } from "@/lib/session";
 import { initials } from "@/components/nav-user";
 
 const DEMO = import.meta.env.MODE === "demo";
-const OFFLINE = "We couldn't reach the server. Check your connection and try again.";
 
 export function SignIn() {
   const { account, next } = useSession();
@@ -35,11 +35,7 @@ export function SignIn() {
   if (DEMO) return <DemoSignIn from={from} />;
   // App Flow front doors: the owner opens on the dashboard, office roles on Today.
   if (account && !next) return <Navigate to={from ?? (account.role === "owner" ? "/dashboard" : "/")} replace />;
-  return (
-    <AuthLayout>
-      {!account ? <PasswordStep /> : next === "change_password" ? <ChangePasswordStep /> : <TwoFactorSetupStep />}
-    </AuthLayout>
-  );
+  return <AuthLayout>{!account ? <PasswordStep /> : <ChangePasswordStep />}</AuthLayout>;
 }
 
 function AuthLayout({ children }: { children: ReactNode }) {
@@ -68,57 +64,6 @@ const StepTitle = ({ children }: { children: ReactNode }) => (
     {children}
   </CardTitle>
 );
-
-function ErrorAlert({ id, children }: { id: string; children: ReactNode }) {
-  return (
-    <Alert variant="destructive" id={id}>
-      <AlertCircleIcon aria-hidden />
-      <AlertDescription>{children}</AlertDescription>
-    </Alert>
-  );
-}
-
-const digits = (v: string) => v.replace(/\D/g, "").slice(0, 6);
-
-function CodeInput({ id, value, onChange, invalid, describedBy }: { id: string; value: string; onChange: (v: string) => void; invalid: boolean; describedBy?: string }) {
-  return (
-    <Input
-      id={id}
-      name="otp"
-      value={value}
-      onChange={(e) => onChange(digits(e.target.value))}
-      inputMode="numeric"
-      autoComplete="one-time-code"
-      pattern="[0-9]{6}"
-      maxLength={6}
-      required
-      autoFocus
-      aria-invalid={invalid}
-      aria-describedby={describedBy}
-      className="font-mono text-lg tracking-[0.4em] tabular-nums"
-    />
-  );
-}
-
-function signInMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return OFFLINE;
-  switch (err.code) {
-    case "INVALID_CREDENTIALS":
-      return "That username and password don't match. Check both and try again.";
-    case "OTP_INVALID":
-      return "That code didn't work. Enter the code your authenticator app shows now; each code works only once.";
-    case "ACCOUNT_LOCKED": {
-      const minutes = Math.max(1, Math.ceil(Number(err.details.retryAfterSeconds ?? 60) / 60));
-      return `This account is locked after too many failed sign-ins. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}, or ask the system admin to unlock it.`;
-    }
-    case "ACCOUNT_DISABLED":
-      return "This account has been turned off. Ask the system admin if you still need access.";
-    case "TOO_MANY_ATTEMPTS":
-      return "Too many sign-in attempts from this network. Wait a few minutes, then try again.";
-    default:
-      return err.status >= 500 ? "Something went wrong on our side. Try again in a minute." : err.message;
-  }
-}
 
 function PasswordStep() {
   const { signInWithPassword, notice } = useSession();
@@ -324,107 +269,6 @@ function ChangePasswordStep() {
       <CardFooter className="mt-4 flex-col gap-2">
         <Button type="submit" className="w-full" size="lg" disabled={change.isPending}>
           Save new password
-        </Button>
-        <SignOutLink />
-      </CardFooter>
-    </form>
-  );
-}
-
-/** QR code drawn from `uqr`'s module grid. Always dark on light, whatever the theme: phone scanners need that contrast. */
-function QrCode({ text, label }: { text: string; label: string }) {
-  const path = useMemo(() => {
-    const { data } = encode(text, { border: 4 });
-    return { size: data.length, d: data.flatMap((row, y) => row.flatMap((on, x) => (on ? [`M${x} ${y}h1v1h-1z`] : []))).join("") };
-  }, [text]);
-  return (
-    <svg role="img" aria-label={label} viewBox={`0 0 ${path.size} ${path.size}`} shapeRendering="crispEdges" className="size-48 rounded-md bg-white text-black">
-      <path d={path.d} fill="currentColor" />
-    </svg>
-  );
-}
-
-function TwoFactorSetupStep() {
-  const { completeStep } = useSession();
-  const [code, setCode] = useState("");
-  // POST because each call starts a fresh pending secret; cached for the life of this screen only.
-  const setup = useQuery({
-    queryKey: ["auth", "2fa-setup"],
-    queryFn: () => api.post<{ secret: string; otpauthUrl: string }>("/api/auth/2fa/setup"),
-    staleTime: Infinity,
-    gcTime: 0,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-  const confirm = useMutation({
-    mutationFn: () => api.post<{ next: NextStep }>("/api/auth/2fa/confirm", { code }),
-    onSuccess: (r) => {
-      toast.success("Two-factor sign-in is on");
-      completeStep(r.next);
-    },
-    onError: () => setCode(""),
-  });
-  const err = confirm.error;
-  const error = !err ? null : err instanceof ApiError && err.code === "OTP_INVALID" ? "That code didn't match. Enter the code the app shows now; it changes every 30 seconds." : signInMessage(err);
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        confirm.mutate();
-      }}
-    >
-      <CardHeader>
-        <StepTitle>Set up two-factor sign-in</StepTitle>
-        <CardDescription>Each time you sign in, you'll also enter a code from an authenticator app on your phone, such as Microsoft Authenticator or Google Authenticator.</CardDescription>
-      </CardHeader>
-      <CardContent className="mt-4 space-y-5">
-        {setup.isPending ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            Preparing your set-up code…
-          </p>
-        ) : setup.isError ? (
-          <div className="space-y-2">
-            <ErrorAlert id="setup-error">{signInMessage(setup.error)}</ErrorAlert>
-            <Button type="button" variant="outline" onClick={() => void setup.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <ol className="space-y-5 text-sm">
-            <li className="space-y-3">
-              <p>
-                <span className="font-medium">1. Scan this code</span> with the app (add an account, then scan a QR code).
-              </p>
-              <div className="flex justify-center">
-                <QrCode text={setup.data.otpauthUrl} label="QR code for setting up your authenticator app" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-muted-foreground">Can't scan it? Choose to enter a setup key, and type this key:</p>
-                <p className="rounded-md bg-muted px-3 py-2 text-center font-mono text-base tracking-wider break-all" translate="no">
-                  {setup.data.secret.match(/.{1,4}/g)?.join(" ")}
-                </p>
-                <a href={setup.data.otpauthUrl} className="inline-block text-primary underline-offset-4 hover:underline">
-                  Open in an authenticator app on this device
-                </a>
-              </div>
-            </li>
-            <li>
-              <Field data-invalid={!!error}>
-                <FieldLabel htmlFor="setup-code">
-                  <span className="font-medium">2. Code from the app</span>
-                </FieldLabel>
-                {error && <ErrorAlert id="setup-code-error">{error}</ErrorAlert>}
-                <CodeInput id="setup-code" value={code} onChange={setCode} invalid={!!error} describedBy={error ? "setup-code-error" : undefined} />
-                <FieldDescription>Enter the 6-digit code the app now shows for this system.</FieldDescription>
-              </Field>
-            </li>
-          </ol>
-        )}
-      </CardContent>
-      <CardFooter className="mt-4 flex-col gap-2">
-        <Button type="submit" className="w-full" size="lg" disabled={!setup.isSuccess || confirm.isPending || code.length !== 6}>
-          Turn on two-factor
         </Button>
         <SignOutLink />
       </CardFooter>
