@@ -8,8 +8,8 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-09 (6) — Own authentication (A25) with permissions on every route and PostgreSQL row-level security; sponsors and outsourced workers API (PRD 4.18, A21–A24); web sign-in. Branch `feat/auth-and-sponsors`.
-**Gates (2026-11-09, `feat/auth-and-sponsors`):** core 107 passed (mutation 89.8 %) · API 95 passed (PostgreSQL 16) · web 67 passed · typecheck clean · `bun run gates` green · e2e now signs in with a live authenticator code (accounts: `bun run --filter @mms/api e2e:accounts`).
+**Last session:** 2026-11-10 (7) — Document masters (PRD 4.19, A26–A30): eighteen registers in three groups, scans stored and opened only when clean, Oman ID card and medical insurance mandatory (A28), the start of the client register; screens S-44 and S-45; independent review findings fixed. Branch `feat/document-masters`.
+**Gates (2026-11-10, `feat/document-masters`):** core 125 passed (mutation 89.1 %) · API 138 passed (PostgreSQL 16) · web 94 passed · typecheck clean · `bun run gates` green · web and demo builds green · S-44/S-45 checked in a browser against the branch API (sign-in with a live code, scan upload and opening audited, phone width).
 
 ## How a step runs
 
@@ -22,6 +22,8 @@
 The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's plan names its TR-IDs (`docs/spec/05-TRD.md`).
 
 ## Completed
+
+- [x] Document masters (PRD 4.19, A26–A30): the eighteen masters in In House, Purchase and Sales (company papers; direct and indirect employees' passport, Oman ID card, medical insurance, Sohar gate pass; sub-contractor and client CRs); `organisation_documents`, `files` (type from the bytes, 15 MB, EICAR-tested virus check in development, pending in production until X15, immutable, status pending → clean/infected only), the client register started (`C-00001`); permissions `masters.read`, `org_documents.manage`, `company_documents.manage` (HR/PRO only), `clients.read`, `clients.manage`, `pii.view` (worker scans); scans upload only after sign-in, outside the request transaction; every opening audited; Oman ID card and medical insurance join the mandatory documents and a site may require a Sohar gate pass (A28). Screens S-44 and S-45, scans on the worker file and S-08, hosted demo endpoints. Seed: idempotent masters data, and every seeded worker now gets an engagement (fixes fresh seeds after 0008). Independent review: 1 high, 3 medium, 6 low, fixed with tests or deferred (X20, X21). 2026-11-10
 
 - [x] Own authentication (A25, HMS design): Argon2id, mandatory TOTP, 15-minute access tokens in memory, rotating refresh cookie with reuse detection, server idle and absolute limits, reserve-then-verify lockout, per-IP and per-user limits; default-deny permissions on every route (test-checked); requests run as `mms_app` under entity row-level security (audit included, one hash chain, hash v2 covers the entity); admin user endpoints; bootstrap and demo-user scripts; web sign-in, first-sign-in set-up, Admin › Users; sign-out fails closed. Six security reviews' findings fixed with regression tests. 2026-11-09
 - [x] Sponsors and outsourced workers API (PRD 4.18, A21–A24): sponsor register with head-counts, dated engagements (own, supplied, transferred, free_visa), authorisations verified by a second person, owner-only override behind `outsourcing.unauthorised`, supply agreements with four eyes and decimal rates; every existing worker backfilled as own. Screens, labour bills and the 730/2024 limits deferred (X11–X13). 2026-11-09
