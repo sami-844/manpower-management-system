@@ -46,6 +46,7 @@ export const AREAS = [
   "insight",
   "workforce",
   "compliance",
+  "masters",
   "commercial",
   "operations",
   "time",
@@ -63,12 +64,25 @@ export type Area = (typeof AREAS)[number];
  * role grants (payroll staff do not see Commercial, for example)").
  */
 export const ROLE_AREAS: Record<V1Role, readonly Area[]> = {
-  owner: ["today", "insight", "workforce", "compliance", "commercial", "operations", "time", "payroll", "billing", "finance", "reports", "desktop"],
-  ops_manager: ["today", "insight", "workforce", "compliance", "commercial", "operations", "time", "reports", "desktop"],
-  hr_pro: ["today", "insight", "workforce", "compliance", "time", "payroll", "reports", "desktop"],
+  owner: ["today", "insight", "workforce", "compliance", "masters", "commercial", "operations", "time", "payroll", "billing", "finance", "reports", "desktop"],
+  ops_manager: ["today", "insight", "workforce", "compliance", "masters", "commercial", "operations", "time", "reports", "desktop"],
+  hr_pro: ["today", "insight", "workforce", "compliance", "masters", "time", "payroll", "reports", "desktop"],
   payroll: ["today", "insight", "workforce", "time", "payroll", "reports", "desktop"],
-  finance: ["today", "insight", "commercial", "payroll", "billing", "finance", "reports", "desktop"],
+  finance: ["today", "insight", "masters", "commercial", "payroll", "billing", "finance", "reports", "desktop"],
   admin: ["today", "insight", "workforce", "compliance", "commercial", "operations", "time", "payroll", "billing", "finance", "reports", "admin", "desktop"],
 };
 
 export const canSee = (role: V1Role, area: Area): boolean => ROLE_AREAS[role].includes(area);
+
+/**
+ * Demo accounts have no `/api/auth/me`, so the hosted demo grants each role the API permissions its
+ * screens act on (DECISIONS A30; `apps/api/drizzle` role_permissions). Live sessions use the server's list.
+ */
+export const DEMO_ROLE_PERMISSIONS: Record<V1Role, readonly string[]> = {
+  owner: ["masters.read", "clients.read", "pii.view"],
+  ops_manager: ["masters.read", "clients.read", "clients.manage", "org_documents.manage", "sponsors.manage"],
+  hr_pro: ["masters.read", "clients.read", "org_documents.manage", "company_documents.manage", "documents.create", "documents.verify", "sponsors.manage", "pii.view"],
+  payroll: [],
+  finance: ["masters.read", "clients.read", "clients.manage"],
+  admin: [],
+};

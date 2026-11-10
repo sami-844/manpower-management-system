@@ -37,6 +37,16 @@ Built 2026-11-09 for the Version 1 demo foundation (see DECISIONS A16–A18).
 | Confirm | `components/confirm-dialog.tsx` | `AlertDialog`, button names the action and amount, optional type-to-confirm |
 | Page header, KPI card | `components/page-header.tsx`, `kpi-card.tsx` | Title + actions top-right; "Sample data" badge for demo-layer screens (the same badge, labelled "Hosted demo", sits in the header of the Cloudflare build); number cards link to the names behind them |
 | Aceternity | `components/aceternity/*` | Approved list only: background beams (S-01), multi-step loader (payroll calculate, WPS generate), number ticker (S-32, in-house on `motion`). Colours mapped to tokens; `MotionConfig reducedMotion="user"` app-wide. Timeline and Animated Tooltip were tried and removed: both hard-code palette colours and photo avatars, so worker history (S-06) and the site crew stack (S-13) use token-based equivalents |
+| Scan actions | `components/scan-actions.tsx` (2026-11-10) | "Upload scan" (hidden file input, `.pdf,.jpg,.jpeg,.png,.heic`, 15 MB checked before sending, server message in a toast) and "View scan" (fetched with the bearer token as a Blob, opened from an object URL in a new tab; HEIC is downloaded because browsers can't show it). Used by S-45 and S-06 |
+
+### Document masters (S-44, S-45) — 2026-11-10
+
+| Screen | File | How it applies the brief |
+|---|---|---|
+| S-44 Document masters | `pages/masters/Masters.tsx` | `PageHeader`; one-line summary (tabular counts); one `section` per group (In House, Purchase, Sales) with a responsive card grid (1 column on a phone, 2 / 3 wider) of links, each with the master's number (mono), label and `StatusBadge` counts (expired, missing, due, valid, no expiry, not verified; zeros left out). Skeletons while loading |
+| S-45 Master register | `pages/masters/MasterRegister.tsx` | `PageHeader` (label, "Master N" chip, Add client / Add sub-contractor top-right); state counts as pressable filter tiles (the S-09 Renewals pattern, `?state=` in the URL); `DataTable` with subject (worker link, code, engagement and sponsor), masked number, dates, days left in words, state `StatusBadge` (icon + word: Expired, Missing, Due, Valid, No expiry date), verified by whom, scan state; row actions Record/Renew (`Dialog`, native date inputs), Verify, Upload scan, View scan, each shown only when `useSession().allows(permission)`; empty states say who adds what |
+
+Permissions in the UI: `useSession().allows("…")` reads `/api/auth/me` permissions in live builds and `DEMO_ROLE_PERMISSIONS` (`lib/roles.ts`) in the hosted demo. An action the account can't perform is not shown.
 
 **Deviation to confirm:** shadcn uses `--accent` for every hover/selected surface. Putting the brief's site amber there would turn every menu hover amber, against "one accent colour, sparingly". The amber lives in `--highlight` (same values as the brief's `--accent`), and `--accent` is a quiet blue-grey. Change the brief or this file, whichever the reviewer prefers.
 

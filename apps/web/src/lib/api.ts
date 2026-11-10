@@ -30,6 +30,11 @@ async function toResult<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+/** Marks a body to send raw rather than as JSON. */
+class UploadBody {
+  constructor(readonly upload: Upload) {}
+}
+
 // ── Session client (every build except the hosted demo) ─────────────────────────────────────────
 // The access token lives in this module's memory only, never in localStorage or sessionStorage, so
 // it dies with the tab and an injected script can't lift it from storage. The refresh token is an
@@ -73,11 +78,22 @@ function adopt(grant: AuthGrant | null): void {
   for (const fn of listeners) fn(grant);
 }
 
+/** A file sent as the raw request body (scans: `POST /api/…/scan`), typed by `Content-Type` and named by `X-File-Name`. */
+export interface Upload {
+  file: Blob;
+  name: string;
+  type: string;
+}
+
 function send(method: string, path: string, body?: unknown): Promise<Response> {
+  const upload = body instanceof UploadBody ? body.upload : null;
   return fetch(`${API_URL}${path}`, {
     method,
-    headers: { "content-type": "application/json", ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: {
+      ...(upload ? { "content-type": upload.type, "x-file-name": encodeURIComponent(upload.name) } : { "content-type": "application/json" }),
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: upload ? upload.file : body === undefined ? undefined : JSON.stringify(body),
     // The refresh cookie lives on /api/auth; the API is on another origin in development.
     credentials: path.startsWith("/api/auth/") ? "include" : "same-origin",
   });
@@ -161,20 +177,45 @@ export async function restoreSession(): Promise<AuthGrant | null> {
   return refreshSession();
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  // The hosted demo (Cloudflare, `vite build --mode demo`) has no API server: answer in the browser.
-  // Vite replaces MODE at build time, so other builds drop this branch and the stand-in entirely.
-  if (DEMO) {
-    const { demoServer } = await import("@/demo/server");
-    return demoServer().handle<T>(method, path, body, currentUser());
-  }
+/** The demo stand-in's answer to a file download (it has no HTTP response to stream). */
+export interface DemoFile {
+  bytes: Uint8Array;
+  mime: string;
+}
+
+async function demoHandle<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const { demoServer } = await import("@/demo/server");
+  // The stand-in takes a file as its bytes, the way the API reads the raw body.
+  const sent = body instanceof UploadBody ? { bytes: new Uint8Array(await body.upload.file.arrayBuffer()), contentType: body.upload.type, fileName: body.upload.name } : body;
+  return demoServer().handle<T>(method, path, sent, currentUser());
+}
+
+/** Send with the bearer token; on a 401 renew once (unless another call already did) and retry once. */
+async function sendWithRenewal(method: string, path: string, body?: unknown): Promise<Response> {
   const sentWith = accessToken;
   let res = await send(method, path, body);
-  // 401: the token expired or was revoked. Renew once (unless another call already did) and retry once.
   if (res.status === 401 && !NO_RETRY.has(path)) {
     if (accessToken !== sentWith || (await refreshSession())) res = await send(method, path, body);
   }
-  return toResult<T>(res);
+  return res;
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // The hosted demo (Cloudflare, `vite build --mode demo`) has no API server: answer in the browser.
+  // Vite replaces MODE at build time, so other builds drop this branch and the stand-in entirely.
+  if (DEMO) return demoHandle<T>(method, path, body);
+  return toResult<T>(await sendWithRenewal(method, path, body));
+}
+
+/** GET a file (a document scan) as a Blob; errors arrive as ApiError like every other call. */
+async function getBlob(path: string): Promise<Blob> {
+  if (DEMO) {
+    const f = await demoHandle<DemoFile>("GET", path);
+    return new Blob([new Uint8Array(f.bytes)], { type: f.mime });
+  }
+  const res = await sendWithRenewal("GET", path);
+  if (!res.ok) return toResult<never>(res);
+  return res.blob();
 }
 
 export const api = {
@@ -182,6 +223,9 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
+  /** POST a file as the raw request body. */
+  upload: <T>(path: string, upload: Upload) => request<T>("POST", path, new UploadBody(upload)),
+  blob: getBlob,
 };
 
 export interface WorkerListItem {

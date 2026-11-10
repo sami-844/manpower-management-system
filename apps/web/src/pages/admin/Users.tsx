@@ -38,6 +38,7 @@ const AREA_LABELS: Record<Area, string> = {
   insight: "Dashboard and approvals",
   workforce: "Workers and documents",
   compliance: "Compliance and renewals",
+  masters: "Document masters",
   commercial: "Clients and rate cards",
   operations: "Requests and roster",
   time: "Attendance and timesheets",

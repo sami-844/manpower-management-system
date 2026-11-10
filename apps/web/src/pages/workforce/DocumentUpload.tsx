@@ -1,8 +1,9 @@
 /**
  * S-08 Document upload (App Flow "new worker to deployable", steps 2 and 3). Scans are dropped
- * into a queue and kept in this browser's memory only (file storage arrives with S3 in its
- * sprint); each one is matched to a REAL worker, typed and dated, then saved through
- * `POST /api/workers/:id/documents` and verified through `PATCH /api/documents/:id/verify`.
+ * into a queue, each matched to a REAL worker, typed and dated, then saved through
+ * `POST /api/workers/:id/documents` with the scan itself through `POST /api/documents/:id/scan`
+ * (PRD 4.19, A27: type checked from the bytes, virus-scanned, 15 MB), and verified through
+ * `PATCH /api/documents/:id/verify`.
  */
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +12,7 @@ import { DOCUMENT_TYPES, documentLabel, type DocumentType } from "@mms/core";
 import { ArrowUpRightIcon, BadgeCheckIcon, FileTextIcon, FileUpIcon, LoaderCircleIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { SCAN_ACCEPT, scanProblem, scanType } from "@/components/scan-actions";
 import { userLabel } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,7 @@ import { NativeSelect, WorkerPicker } from "./shared";
 type ScanStatus = "draft" | "saving" | "saved" | "verifying" | "verified" | "error";
 interface Scan {
   id: string;
+  file: File;
   name: string;
   size: number;
   kind: "image" | "pdf";
@@ -57,6 +60,8 @@ function guessType(name: string): DocumentType {
   const n = name.toLowerCase();
   if (n.includes("visa")) return "residence_visa";
   if (n.includes("labour") || n.includes("labor")) return "labour_card";
+  if (n.includes("insur")) return n.includes("medic") ? "medical_insurance" : "insurance";
+  if (n.includes("gate")) return "sohar_gate_pass";
   if (n.includes("medic")) return "medical";
   if (n.includes("civil")) return "civil_id";
   if (n.includes("licen")) return "driving_licence";
@@ -81,13 +86,17 @@ export function DocumentUpload() {
   const patch = (id: string, change: Partial<Scan>) => setScans((all) => all.map((s) => (s.id === id ? { ...s, ...change } : s)));
 
   const addFiles = (files: FileList | null) => {
-    const accepted = Array.from(files ?? []).filter((f) => f.type.startsWith("image/") || f.type === "application/pdf");
-    if (files && accepted.length < files.length) toast.warning("Only images and PDFs can be added", { description: `${files.length - accepted.length} file(s) skipped.` });
+    const all = Array.from(files ?? []);
+    const accepted = all.filter((f) => !scanProblem(f));
+    const refused = all.filter((f) => scanProblem(f));
+    if (refused.length) {
+      toast.warning("Only PDF, JPG, PNG and HEIC scans up to 15 MB can be added", { description: refused.map((f) => scanProblem(f)).join(" ") });
+    }
     if (!accepted.length) return;
     const added = accepted.map((f): Scan => {
       const url = URL.createObjectURL(f);
       urls.current.add(url);
-      return { id: crypto.randomUUID(), name: f.name, size: f.size, kind: f.type === "application/pdf" ? "pdf" : "image", url, workerId: null, type: guessType(f.name), number: "", issueDate: "", expiryDate: "", status: "draft" };
+      return { id: crypto.randomUUID(), file: f, name: f.name, size: f.size, kind: scanType(f) === "application/pdf" ? "pdf" : "image", url, workerId: null, type: guessType(f.name), number: "", issueDate: "", expiryDate: "", status: "draft" };
     });
     setScans((all) => [...all, ...added]);
     setSelectedId((cur) => cur ?? added[0]!.id);
@@ -107,16 +116,25 @@ export function DocumentUpload() {
   };
 
   const save = useMutation({
-    mutationFn: (s: Scan) =>
-      api.post<{ id: string }>(`/api/workers/${s.workerId}/documents`, {
+    mutationFn: async (s: Scan) => {
+      const doc = await api.post<{ id: string }>(`/api/workers/${s.workerId}/documents`, {
         type: s.type,
         number: s.number || undefined,
         issueDate: s.issueDate || undefined,
         expiryDate: s.expiryDate || null,
-      }),
+      });
+      // The details are saved; the scan follows. If it is refused, the document stays saved without it.
+      try {
+        await api.upload(`/api/documents/${doc.id}/scan`, { file: s.file, name: s.name, type: scanType(s.file)! });
+        return { doc, scanError: null };
+      } catch (e) {
+        return { doc, scanError: e instanceof ApiError ? e.message : "The server didn't respond." };
+      }
+    },
     onMutate: (s) => patch(s.id, { status: "saving", error: undefined }),
-    onSuccess: (doc, s) => {
+    onSuccess: ({ doc, scanError }, s) => {
       patch(s.id, { status: "saved", docId: doc.id, savedBy: account?.username });
+      if (scanError) toast.error(`${s.name}: the details are saved, but the scan was not`, { description: `${scanError} Upload it again from the worker file.` });
       invalidate(s.workerId!);
     },
     onError: (e, s) => patch(s.id, { status: "error", error: e instanceof ApiError ? (e.issues[0]?.message ?? e.message) : "The server didn't respond." }),
@@ -149,7 +167,7 @@ export function DocumentUpload() {
       <PageHeader
         screen="S-08"
         title="Document upload"
-        description="Drop a batch of scans, match each to a worker, enter its dates, then save and verify. Scans stay in this browser until file storage is connected."
+        description="Drop a batch of scans, match each to a worker, enter its dates, then save and verify. Each scan is stored with its document once it passes the file-type and virus checks."
         actions={
           scans.length > 0 && (
             <Button onClick={() => void saveAll()} disabled={readyCount === 0 || save.isPending}>
@@ -181,7 +199,7 @@ export function DocumentUpload() {
         <FileUpIcon aria-hidden className="size-6 text-muted-foreground" />
         <span className="text-sm font-medium">Drop scans here, or click to choose</span>
         <span className="text-xs text-muted-foreground">Passport, visa, labour card, medical, civil ID · JPG, PNG or PDF</span>
-        <input id="scan-input" type="file" multiple accept="image/*,application/pdf" className="sr-only" aria-label="Choose scans" onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
+        <input id="scan-input" type="file" multiple accept={SCAN_ACCEPT} className="sr-only" aria-label="Choose scans" onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
       </label>
 
       {scans.length === 0 ? (

@@ -187,3 +187,56 @@ describe("session client", () => {
     expect(callsTo("/api/auth/refresh")).toHaveLength(0);
   });
 });
+
+describe("files (scans)", () => {
+  const file = new Blob(["%PDF-1.4 fictional"], { type: "application/pdf" });
+
+  it("uploads the file as the raw body, typed and named in the headers, with the bearer token and one renewal", async () => {
+    route({
+      "/api/auth/login": [() => json(200, grant("t1"))],
+      "/api/auth/refresh": [() => json(200, grant("t2"))],
+      "/api/documents/d1/scan": [() => json(401, { code: "TOKEN_INVALID" }), () => json(201, { fileId: "f1", verified: true })],
+    });
+    await mod.login({ username: "hr.officer", password: "x" });
+    await expect(mod.api.upload("/api/documents/d1/scan", { file, name: "passport scan é.pdf", type: "application/pdf" })).resolves.toEqual({ fileId: "f1", verified: true });
+
+    const [first, retry] = callsTo("/api/documents/d1/scan");
+    expect((retry![1] as RequestInit).method).toBe("POST");
+    expect((retry![1] as RequestInit).body).toBe(file);
+    const h = headersOf(retry!);
+    expect(h.get("content-type")).toBe("application/pdf");
+    expect(h.get("x-file-name")).toBe(encodeURIComponent("passport scan é.pdf"));
+    expect(headersOf(first!).get("authorization")).toBe("Bearer t1");
+    expect(h.get("authorization")).toBe("Bearer t2");
+  });
+
+  it("reports an upload the server refuses as ApiError with its code", async () => {
+    route({
+      "/api/auth/login": [() => json(200, grant("t1"))],
+      "/api/documents/d1/scan": [() => json(413, { code: "FILE_TOO_LARGE", message: "A scan can be at most 15 MB." })],
+    });
+    await mod.login({ username: "hr.officer", password: "x" });
+    await expect(mod.api.upload("/api/documents/d1/scan", { file, name: "big.pdf", type: "application/pdf" })).rejects.toMatchObject({
+      status: 413,
+      code: "FILE_TOO_LARGE",
+      message: "A scan can be at most 15 MB.",
+    });
+  });
+
+  it("downloads a scan as a Blob with the bearer token; errors arrive as ApiError", async () => {
+    route({
+      "/api/auth/login": [() => json(200, grant("t1"))],
+      "/api/documents/d1/scan": [() => new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), { status: 200, headers: { "content-type": "application/pdf" } })],
+      "/api/documents/d2/scan": [() => json(409, { code: "FILE_NOT_SCANNED", message: "This scan is still being checked for viruses." })],
+    });
+    await mod.login({ username: "hr.officer", password: "x" });
+    const blob = await mod.api.blob("/api/documents/d1/scan");
+    expect(blob.type).toBe("application/pdf");
+    expect(blob.size).toBe(4); // jsdom's Blob has no arrayBuffer(); size and type are enough here
+    expect(headersOf(callsTo("/api/documents/d1/scan")[0]!).get("authorization")).toBe("Bearer t1");
+
+    const err = await mod.api.blob("/api/documents/d2/scan").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(mod.ApiError);
+    expect(err).toMatchObject({ status: 409, code: "FILE_NOT_SCANNED" });
+  });
+});

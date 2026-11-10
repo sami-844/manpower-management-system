@@ -1,5 +1,5 @@
 /**
- * Sidebar structure (Design Brief "Layouts": Dashboard, Workers, Compliance, Clients, Roster,
+ * Sidebar structure (Design Brief "Layouts": Dashboard, Workers, Compliance, Masters, Clients, Roster,
  * Timesheets, Payroll, Billing, Finance, Reports, Settings). Items point at paths in screens.tsx;
  * each group is shown only to roles that can see its area.
  */
@@ -10,6 +10,7 @@ import {
   CalendarClockIcon,
   ChartColumnIcon,
   CheckCheckIcon,
+  FolderOpenIcon,
   HardHatIcon,
   HouseIcon,
   LandmarkIcon,
@@ -44,6 +45,7 @@ export const NAV_OVERVIEW: NavGroup[] = [
 export const NAV_MODULES: NavGroup[] = [
   { title: "Workers", icon: UsersRoundIcon, area: "workforce", items: [{ title: "All workers", path: "/workers" }, { title: "New worker", path: "/workers/new" }, { title: "Document upload", path: "/documents/upload" }] },
   { title: "Compliance", icon: BadgeCheckIcon, area: "compliance", items: [{ title: "Renewals", path: "/renewals" }, { title: "Government transactions", path: "/gov-transactions" }, { title: "Overrides", path: "/overrides" }] },
+  { title: "Masters", icon: FolderOpenIcon, area: "masters", path: "/masters" },
   { title: "Clients", icon: Building2Icon, area: "commercial", items: [{ title: "All clients", path: "/clients" }, { title: "Contracts & rate cards", path: "/contracts" }] },
   { title: "Roster", icon: HardHatIcon, area: "operations", items: [{ title: "Manpower requests", path: "/requests" }, { title: "Roster board", path: "/roster" }, { title: "Bench", path: "/bench" }] },
   { title: "Timesheets", icon: CalendarClockIcon, area: "time", items: [{ title: "Daily sheets", path: "/daily-sheets" }, { title: "Attendance entry", path: "/attendance" }, { title: "Timesheets", path: "/timesheets" }, { title: "Client packs", path: "/timesheet-packs" }, { title: "Leave", path: "/leave" }] },

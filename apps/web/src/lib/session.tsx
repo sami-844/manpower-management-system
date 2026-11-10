@@ -6,7 +6,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, login, logout, onSessionChange, restoreSession, type AuthGrant, type AuthUser, type NextStep } from "./api";
-import { canSee, V1_ROLES, type Area, type DemoAccount, type V1Role } from "./roles";
+import { canSee, DEMO_ROLE_PERMISSIONS, V1_ROLES, type Area, type DemoAccount, type V1Role } from "./roles";
 import { currentAccount, setCurrentUser } from "./user";
 
 const DEMO = import.meta.env.MODE === "demo";
@@ -42,9 +42,11 @@ interface Session {
   signOut: () => Promise<void>;
   can: (area: Area) => boolean;
   hasRole: (...roles: V1Role[]) => boolean;
+  /** Whether the account holds an API permission (e.g. `documents.verify`): show only actions it can perform. */
+  allows: (permission: string) => boolean;
 }
 
-const fromDemo = (a: DemoAccount | null): Account | null => (a ? { ...a, roles: [a.role], permissions: [] } : null);
+const fromDemo = (a: DemoAccount | null): Account | null => (a ? { ...a, roles: [a.role], permissions: DEMO_ROLE_PERMISSIONS[a.role] } : null);
 
 const SessionContext = createContext<Session | null>(null);
 
@@ -131,6 +133,7 @@ export function SessionProvider({ children, fallback = null }: { children: React
       signOut,
       can: (area) => !!account && account.roles.some((r) => canSee(r, area)),
       hasRole: (...roles) => !!account && account.roles.some((r) => roles.includes(r)),
+      allows: (permission) => !!account && account.permissions.includes(permission),
     }),
     [account, next, notice, signIn, signInWithPassword, completeStep, signOut],
   );

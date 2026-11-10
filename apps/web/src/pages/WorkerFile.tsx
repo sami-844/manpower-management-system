@@ -34,6 +34,7 @@ import { FieldErrors } from "@/components/FieldErrors";
 import { Money } from "@/components/money";
 import { Page, PageHeader, SampleDataBadge } from "@/components/page-header";
 import { ComplianceBadge, StatusBadge } from "@/components/status-badge";
+import { UploadScanButton, ViewScanButton } from "@/components/scan-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -46,7 +47,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { NativeSelect, WorkerStatusText } from "./workforce/shared";
 
-type DocView = WorkerDetail["documents"][number] & { createdAt?: string; verifiedAt?: string | null };
+type DocView = WorkerDetail["documents"][number] & { createdAt?: string; verifiedAt?: string | null; fileId?: string | null };
 interface AuditRow {
   id: number;
   actor: string;
@@ -204,8 +205,10 @@ function DocStatus({ d }: { d: DocView }) {
 
 function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; addedBy: Map<string, string>; onAdd: () => void }) {
   const qc = useQueryClient();
-  const { account, hasRole } = useSession();
+  const { account, hasRole, allows } = useSession();
   const canVerify = hasRole(...HR_ROLES);
+  const canUpload = allows("documents.create");
+  const canView = allows("pii.view");
   const verify = useMutation({
     mutationFn: (doc: DocView) => api.patch<DocView>(`/api/documents/${doc.id}/verify`),
     onSuccess: (_, doc) => {
@@ -232,7 +235,7 @@ function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; added
           <Empty className="py-8">
             <EmptyHeader>
               <EmptyTitle>No documents yet</EmptyTitle>
-              <EmptyDescription>Add the passport, residence visa, labour card and medical. The worker can't be deployed until all four are valid.</EmptyDescription>
+              <EmptyDescription>Add the passport, residence visa, labour card, medical, Oman ID card and medical insurance. The worker can't be deployed until all six are valid.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button variant="outline" size="sm" asChild>
@@ -252,7 +255,8 @@ function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; added
                   <TableHead>Number</TableHead>
                   <TableHead>Expiry</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="pe-4">Checked by HR</TableHead>
+                  <TableHead className={canUpload || canView ? undefined : "pe-4"}>Checked by HR</TableHead>
+                  {(canUpload || canView) && <TableHead className="pe-4">Scan</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -266,7 +270,7 @@ function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; added
                     <TableCell>
                       <DocStatus d={d} />
                     </TableCell>
-                    <TableCell className="pe-4">
+                    <TableCell className={canUpload || canView ? undefined : "pe-4"}>
                       {d.verified ? (
                         <span className="inline-flex items-center gap-1.5 text-sm">
                           <BadgeCheckIcon aria-hidden className="size-4 text-success" />
@@ -288,6 +292,26 @@ function DocumentsCard({ worker, addedBy, onAdd }: { worker: WorkerDetail; added
                       )}
                       {addedBy.get(d.id) && <span className="block text-xs text-muted-foreground">Added by {userLabel(addedBy.get(d.id))}</span>}
                     </TableCell>
+                    {(canUpload || canView) && (
+                      <TableCell className="pe-4">
+                        <div className="flex flex-wrap gap-1">
+                          {canView && d.fileId && <ViewScanButton path={`/api/documents/${d.id}/scan`} label={documentLabel(d.type)} name={`${documentLabel(d.type)} - ${worker.code}`} />}
+                          {canUpload && (
+                            <UploadScanButton
+                              path={`/api/documents/${d.id}/scan`}
+                              label={documentLabel(d.type)}
+                              wasVerified={d.verified}
+                              onUploaded={() => {
+                                void qc.invalidateQueries({ queryKey: ["worker", worker.id] });
+                                void qc.invalidateQueries({ queryKey: ["workers"] });
+                                void qc.invalidateQueries({ queryKey: ["masters"] });
+                              }}
+                            />
+                          )}
+                          {!canUpload && !d.fileId && <span className="text-sm text-muted-foreground">No scan</span>}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

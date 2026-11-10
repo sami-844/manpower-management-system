@@ -17,7 +17,7 @@ const worker = {
   phone: "+968 91234567",
   compliance: { state: "expired", missing: [], nextExpiry: { type: "residence_visa", expiryDate: "2026-09-04", daysLeft: -40 } },
   documents: [
-    { id: "d1", type: "residence_visa", number: "••••1234", expiryDate: "2026-09-04", verified: true, renewal: { state: "expired", daysLeft: -40, tier: 0 } },
+    { id: "d1", type: "residence_visa", number: "••••1234", expiryDate: "2026-09-04", verified: true, fileId: "f1", renewal: { state: "expired", daysLeft: -40, tier: 0 } },
     { id: "d2", type: "medical", number: null, expiryDate: "2027-05-01", verified: false, renewal: { state: "ok", daysLeft: 199, tier: null } },
   ],
   leave: [],
@@ -26,10 +26,12 @@ const worker = {
 const sites = { items: [{ id: "22222222-2222-4222-8222-222222222222", code: "SOH-PORT", name: "Sohar Port Phase 3", clientName: "Gulf Build LLC" }] };
 
 let calls: { url: string; init?: RequestInit }[];
+let permissions: string[];
 const hrOfficer = { id: "u1", username: "hr.officer", displayName: "Test Officer" };
 
 beforeEach(() => {
   calls = [];
+  permissions = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -38,7 +40,7 @@ beforeEach(() => {
       const body = url.endsWith("/api/auth/refresh")
         ? { accessToken: "t1", expiresIn: 900, user: hrOfficer, next: null }
         : url.endsWith("/api/auth/me")
-          ? { user: hrOfficer, entityId: "e1", entityChoices: [], roles: ["hr_pro"], permissions: [], next: null }
+          ? { user: hrOfficer, entityId: "e1", entityChoices: [], roles: ["hr_pro"], permissions, next: null }
           : url.endsWith("/api/sites")
             ? sites
             : url.endsWith("/compliance/check")
@@ -47,9 +49,12 @@ beforeEach(() => {
                   blockers: [{ code: "DOCUMENT_EXPIRED", documentType: "residence_visa", message: "Residence visa expired on 2026-09-04" }],
                   warnings: [{ code: "DOCUMENT_UNVERIFIED", documentType: "medical", message: "Medical fitness not yet verified by HR" }],
                 }
-              : url.includes("/verify")
+              : url.endsWith("/api/documents/d1/scan")
+                ? null
+                : url.includes("/verify")
                 ? { ...worker.documents[1], verified: true }
                 : worker;
+      if (body === null) return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), { status: 200, headers: { "content-type": "application/pdf" } });
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     }),
   );
@@ -113,5 +118,29 @@ describe("WorkerFile", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Verify Medical fitness" }));
     const verify = calls.find((c) => c.url.endsWith("/api/documents/d2/verify"));
     expect(verify?.init?.method).toBe("PATCH");
+  });
+
+  it("hides the scan actions from an account without pii.view or documents.create", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "Hasan Uddin" });
+    expect(screen.queryByRole("button", { name: /View scan/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Upload scan/ })).not.toBeInTheDocument();
+  });
+
+  it("shows View scan where a scan exists and Upload scan on every document for HR", async () => {
+    permissions = ["documents.create", "documents.verify", "pii.view"];
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    URL.createObjectURL = vi.fn(() => "blob:scan");
+    URL.revokeObjectURL = vi.fn();
+    renderPage();
+    await screen.findByRole("heading", { name: "Hasan Uddin" });
+    const docs = screen.getByRole("table", { name: "Documents" });
+    expect(within(docs).getAllByRole("button", { name: /Upload scan/ })).toHaveLength(2);
+    expect(within(docs).queryByRole("button", { name: "View scan: Medical fitness" })).not.toBeInTheDocument();
+    await userEvent.setup().click(within(docs).getByRole("button", { name: "View scan: Residence visa" }));
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith("blob:scan", "_blank", "noopener"));
+    const scan = calls.find((c) => c.url.endsWith("/api/documents/d1/scan"));
+    expect(new Headers(scan?.init?.headers).get("authorization")).toBe("Bearer t1");
   });
 });

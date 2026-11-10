@@ -1,5 +1,5 @@
 /**
- * Every Version 1 screen (App Flow "Screen inventory", S-01 … S-41) in one table. The router,
+ * Every Version 1 screen (App Flow "Screen inventory", S-01 … S-45) in one table. The router,
  * sidebar, breadcrumbs and Ctrl+K palette are all built from it, so adding a screen is one line.
  */
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
@@ -43,6 +43,10 @@ export const SCREENS: Screen[] = [
   { id: "S-09", path: "/renewals", title: "Renewals", area: "compliance", Component: page(() => import("@/pages/Renewals"), "Renewals"), keywords: "expiry expiring visa labour card" },
   { id: "S-10", path: "/gov-transactions", title: "Government transactions", area: "compliance", Component: page(() => import("@/pages/compliance/GovTransactions"), "GovTransactions"), keywords: "pro ministry visa application" },
   { id: "S-11", path: "/overrides", title: "Overrides", area: "compliance", Component: page(() => import("@/pages/compliance/Overrides"), "Overrides"), keywords: "exception approve" },
+
+  // Masters (PRD 4.19)
+  { id: "S-44", path: "/masters", title: "Document masters", area: "masters", Component: page(() => import("@/pages/masters/Masters"), "Masters"), keywords: "registers company papers cr chamber tax vat licence tenancy municipality oman id medical insurance sohar gate pass sub-contractor client expiry" },
+  { id: "S-45", path: "/masters/:key", title: "Master register", area: "masters", parent: "/masters", Component: page(() => import("@/pages/masters/MasterRegister"), "MasterRegister") },
 
   // Commercial
   { id: "S-12", path: "/clients", title: "Clients", area: "commercial", Component: page(() => import("@/pages/commercial/Clients"), "Clients"), keywords: "customers credit" },

@@ -340,7 +340,8 @@ describe("scans (TR-SEC-12)", () => {
     expect((await ctx.api(null).post(path).set("content-type", "application/pdf").send(PDF)).status).toBe(401);
     // Signed out, or on any other route, a large body is never read: the answer comes without it and the
     // connection may be cut while the sender is still writing. It is never parsed (that would be a 413).
-    const outcome = (r: Promise<{ status: number }>) => r.then((res) => res.status, (e: { code?: string }) => e.code);
+    const outcome = (r: Promise<{ status: number }>): Promise<number | string> =>
+      r.then((res) => res.status, (e: { code?: string }) => e.code ?? String(e));
     const big = Buffer.alloc(16 * 1024 * 1024);
     expect([401, "ECONNRESET", "EPIPE"]).toContain(await outcome(ctx.api(null).post(path).set("content-type", "application/pdf").send(big)));
     expect([200, "ECONNRESET", "EPIPE"]).toContain(await outcome(ctx.api(null).get("/api/health").set("content-type", "application/pdf").send(big)));
