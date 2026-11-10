@@ -1,7 +1,8 @@
 import "reflect-metadata";
 import { Controller, Get, Global, Inject, Module, type INestApplication, type OnApplicationShutdown } from "@nestjs/common";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
-import type { Express } from "express";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import type { Express, NextFunction, Request, Response } from "express";
 import { AuditController } from "./audit/audit.controller";
 import { AuditService } from "./audit/audit.service";
 import { AdminUsersController, AdminUsersService } from "./auth/admin-users";
@@ -14,6 +15,9 @@ import { CLOCK, omanClock } from "./common/clock";
 import { ComplianceController } from "./compliance/compliance.controller";
 import { ComplianceService } from "./compliance/compliance.service";
 import { createDatabase, DB, type Database } from "./db/client";
+import { MAX_FILE_BYTES } from "./db/schema";
+import { FILE_CONFIG, FilesService, loadFileConfig, SCAN_MIMES } from "./files/files";
+import { MastersModule } from "./masters/masters";
 import { SitesModule } from "./sites/sites.module";
 import { SponsorsModule } from "./sponsors/sponsors";
 import { WorkersController } from "./workers/workers.controller";
@@ -37,10 +41,12 @@ class HealthController {
     { provide: DB, useFactory: () => createDatabase() },
     { provide: CLOCK, useValue: omanClock },
     { provide: AUTH_CONFIG, useFactory: () => loadAuthConfig() },
+    { provide: FILE_CONFIG, useFactory: () => loadFileConfig() },
     AuditService,
     AuthService,
+    FilesService,
   ],
-  exports: [DB, CLOCK, AUTH_CONFIG, AuditService, AuthService],
+  exports: [DB, CLOCK, AUTH_CONFIG, FILE_CONFIG, AuditService, AuthService, FilesService],
 })
 class CoreModule implements OnApplicationShutdown {
   constructor(@Inject(DB) private readonly db: Database) {}
@@ -51,7 +57,7 @@ class CoreModule implements OnApplicationShutdown {
 }
 
 @Module({
-  imports: [CoreModule, SitesModule, SponsorsModule],
+  imports: [CoreModule, SitesModule, SponsorsModule, MastersModule],
   controllers: [HealthController, AuthController, AdminUsersController, AuditController, WorkersController, ComplianceController],
   providers: [
     WorkersService,
@@ -77,5 +83,18 @@ export function configureApp(app: INestApplication): void {
   if (process.env.TRUST_PROXY) {
     (app.getHttpAdapter().getInstance() as Express).set("trust proxy", Number(process.env.TRUST_PROXY));
   }
+  // Scans arrive as the raw request body with their real content type (PRD 4.19, TR-SEC-12).
+  (app as NestExpressApplication).useBodyParser("raw", { type: [...SCAN_MIMES], limit: MAX_FILE_BYTES });
+  // A body the parser refuses (too large, unreadable) answers in the API's JSON shape, not an HTML page.
+  (app.getHttpAdapter().getInstance() as Express).use(
+    (err: { type?: string; status?: number }, _req: Request, res: Response, next: NextFunction) => {
+      if (!err?.type?.startsWith("entity.") && err?.type !== "request.aborted") return next(err);
+      const tooLarge = err.type === "entity.too.large";
+      res.status(tooLarge ? 413 : (err.status ?? 400)).json({
+        code: tooLarge ? "FILE_TOO_LARGE" : "BAD_BODY",
+        message: tooLarge ? "A scan can be at most 15 MB." : "The request body could not be read.",
+      });
+    },
+  );
   app.enableShutdownHooks();
 }

@@ -14,6 +14,8 @@ export const DOCUMENT_TYPES = [
   "driving_licence",
   "trade_certificate",
   "insurance",
+  "medical_insurance",
+  "sohar_gate_pass",
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
@@ -95,14 +97,14 @@ export interface Override {
 }
 
 export interface ComplianceRules {
-  /** Documents every deployed worker must hold. */
+  /** Documents every deployed worker must hold, own or outsourced (PRD 4.1, A28). */
   mandatoryDocuments: readonly DocumentType[];
   /** Warn when a document expires within this many days after the period ends. */
   expiringSoonDays: number;
 }
 
 export const DEFAULT_COMPLIANCE_RULES: ComplianceRules = {
-  mandatoryDocuments: ["passport", "residence_visa", "labour_card", "medical"],
+  mandatoryDocuments: ["passport", "residence_visa", "labour_card", "medical", "civil_id", "medical_insurance"],
   expiringSoonDays: 30,
 };
 
@@ -130,11 +132,13 @@ const LABELS: Record<DocumentType, string> = {
   passport: "Passport",
   residence_visa: "Residence visa",
   labour_card: "Labour card",
-  civil_id: "Civil ID",
+  civil_id: "Oman ID card",
   medical: "Medical fitness",
   driving_licence: "Driving licence",
   trade_certificate: "Trade certificate",
   insurance: "Insurance",
+  medical_insurance: "Medical insurance",
+  sohar_gate_pass: "Sohar gate pass",
 };
 
 export function documentLabel(type: DocumentType): string {

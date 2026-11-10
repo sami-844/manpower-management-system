@@ -7,6 +7,8 @@ const full = (expiry: string) => [
   { type: "residence_visa" as const, expiryDate: expiry, verified: true },
   { type: "labour_card" as const, expiryDate: "2030-01-01", verified: true },
   { type: "medical" as const, expiryDate: "2030-01-01", verified: true },
+  { type: "civil_id" as const, expiryDate: "2030-01-01", verified: true },
+  { type: "medical_insurance" as const, expiryDate: "2030-01-01", verified: true },
 ];
 
 describe("summariseWorkerCompliance", () => {
@@ -53,7 +55,7 @@ describe("summariseWorkerCompliance", () => {
   it("has no next expiry when there are no dated documents", () => {
     expect(summariseWorkerCompliance([], today)).toEqual({
       state: "incomplete",
-      missing: ["passport", "residence_visa", "labour_card", "medical"],
+      missing: ["passport", "residence_visa", "labour_card", "medical", "civil_id", "medical_insurance"],
       nextExpiry: null,
     });
   });

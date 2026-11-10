@@ -159,7 +159,7 @@ export async function createTestApp(today = TODAY): Promise<TestContext> {
     },
     // audit_events is append-only by design, so tests filter it by subject instead of clearing it.
     reset: async () => {
-      await db.sql`TRUNCATE leave_periods, compliance_overrides, worker_documents, sites, workers RESTART IDENTITY CASCADE`;
+      await db.sql`TRUNCATE leave_periods, compliance_overrides, worker_documents, organisation_documents, files, clients, sites, workers RESTART IDENTITY CASCADE`;
     },
     close: async () => {
       await app.close();
@@ -174,6 +174,8 @@ export const validDocs = (expiry = "2027-12-31") => [
   { type: "residence_visa", number: "V-998877", expiryDate: expiry },
   { type: "labour_card", number: "LC-445566", expiryDate: expiry },
   { type: "medical", expiryDate: expiry },
+  { type: "civil_id", number: "OM-12345678", expiryDate: expiry },
+  { type: "medical_insurance", number: "MI-2026-001", expiryDate: expiry },
 ];
 
 export async function createWorker(

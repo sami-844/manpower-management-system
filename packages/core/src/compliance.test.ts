@@ -17,6 +17,8 @@ const validDocs = (expiry = "2027-12-31"): WorkerDocument[] => [
   { type: "residence_visa", expiryDate: expiry, verified: true },
   { type: "labour_card", expiryDate: expiry, verified: true },
   { type: "medical", expiryDate: expiry, verified: true },
+  { type: "civil_id", expiryDate: expiry, verified: true },
+  { type: "medical_insurance", expiryDate: expiry, verified: true },
 ];
 
 const base = (over: Partial<EligibilityInput> = {}): EligibilityInput => ({
@@ -44,6 +46,21 @@ describe("checkEligibility", () => {
     expect(result.blockers).toContainEqual(
       expect.objectContaining({ code: "MISSING_DOCUMENT", documentType: "labour_card" }),
     );
+  });
+
+  // A28 — every worker, own or outsourced, also needs an Oman ID card and medical insurance.
+  it.each(["civil_id", "medical_insurance"] as const)("blocks when the %s is missing (A28)", (type) => {
+    const result = checkEligibility(base({ documents: validDocs().filter((d) => d.type !== type) }));
+    expect(result.eligible).toBe(false);
+    expect(result.blockers).toEqual([expect.objectContaining({ code: "MISSING_DOCUMENT", documentType: type })]);
+  });
+
+  it("requires a Sohar gate pass only on a site that asks for one (A28)", () => {
+    expect(checkEligibility(base()).eligible).toBe(true);
+    const sohar = { id: "site-sohar", requiredDocuments: ["sohar_gate_pass"] as const };
+    expect(codes(checkEligibility(base({ site: sohar })).blockers)).toEqual(["MISSING_DOCUMENT"]);
+    const withPass = [...validDocs(), { type: "sohar_gate_pass" as const, expiryDate: "2027-12-31", verified: true }];
+    expect(checkEligibility(base({ site: sohar, documents: withPass })).eligible).toBe(true);
   });
 
   it("blocks when a mandatory document has already expired before the period starts", () => {
@@ -365,11 +382,24 @@ describe("documentLabel", () => {
       "Passport",
       "Residence visa",
       "Labour card",
-      "Civil ID",
+      "Oman ID card",
       "Medical fitness",
       "Driving licence",
       "Trade certificate",
       "Insurance",
+      "Medical insurance",
+      "Sohar gate pass",
+    ]);
+  });
+
+  it("makes the A28 set mandatory by default", () => {
+    expect(DEFAULT_COMPLIANCE_RULES.mandatoryDocuments).toEqual([
+      "passport",
+      "residence_visa",
+      "labour_card",
+      "medical",
+      "civil_id",
+      "medical_insurance",
     ]);
   });
 });

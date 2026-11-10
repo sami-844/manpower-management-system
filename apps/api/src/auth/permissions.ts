@@ -25,6 +25,11 @@ export const PERMISSIONS = [
   "supply.approve",
   "outsourcing.policy",
   "overrides.approve_unauthorised",
+  "masters.read",
+  "org_documents.manage",
+  "clients.read",
+  "clients.manage",
+  "pii.view",
 ] as const;
 export type PermissionKey = (typeof PERMISSIONS)[number];
 

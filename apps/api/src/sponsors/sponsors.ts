@@ -36,7 +36,8 @@ export async function readPolicy(orm: Orm | Tx): Promise<UnauthorisedPolicy> {
   return row?.value === "block" ? "block" : "allow_with_owner_approval";
 }
 
-async function ensureOwnSponsor(tx: Tx, actor: string) {
+/** The company's own sponsor row (one per entity), created with a placeholder name if it is missing. */
+export async function ensureOwnSponsor(tx: Tx, actor: string) {
   const [own] = await tx.select().from(sponsors).where(eq(sponsors.kind, "own"));
   if (own) return own;
   const [created] = await tx.insert(sponsors).values({ kind: "own", legalName: OWN_PLACEHOLDER, createdBy: actor, updatedBy: actor }).returning();

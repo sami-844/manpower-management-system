@@ -54,9 +54,9 @@ describe("POST /api/compliance/check", () => {
     expect(o.status).toBe(201);
     expect(o.body.approvedBy).toBe("ops.manager");
     const res = await ctx.api().post("/api/compliance/check").send({ workerId: w.id, ...period });
-    // Passport overridden; the other three documents are still expired.
+    // Passport overridden; every other mandatory document is still expired.
     expect(res.body.blockers.filter((b: { documentType: string }) => b.documentType === "passport")).toEqual([]);
-    expect(res.body.blockers).toHaveLength(3);
+    expect(res.body.blockers).toHaveLength(validDocs().length - 1);
   });
 
   it("refuses an override without a reason", async () => {
@@ -91,9 +91,10 @@ describe("GET /api/compliance/renewals", () => {
     await createWorker(ctx, { fullName: "Late" }, validDocs("2026-10-01"));
     const res = await ctx.api().get("/api/compliance/renewals");
     expect(res.status).toBe(200);
-    expect(res.body.items).toHaveLength(8);
+    // Every mandatory document of the two workers whose papers are expired or due.
+    expect(res.body.items).toHaveLength(2 * validDocs().length);
     expect(res.body.items[0]).toMatchObject({ workerName: "Late", state: "expired", daysLeft: -13 });
-    expect(res.body.items[7]).toMatchObject({ workerName: "Soon", state: "due", daysLeft: 6 });
+    expect(res.body.items.at(-1)).toMatchObject({ workerName: "Soon", state: "due", daysLeft: 6 });
     expect(res.body.items.some((i: { workerName: string }) => i.workerName === "Far Future")).toBe(false);
   });
 

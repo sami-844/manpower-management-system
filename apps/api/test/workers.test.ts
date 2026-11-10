@@ -71,7 +71,7 @@ describe("GET /api/workers/:id", () => {
     const w = await createWorker(ctx, {}, validDocs("2026-10-20"));
     const res = await ctx.api().get(`/api/workers/${w.id}`);
     expect(res.status).toBe(200);
-    expect(res.body.documents).toHaveLength(4);
+    expect(res.body.documents).toHaveLength(validDocs().length);
     expect(res.body.documents[0]).toMatchObject({ renewal: { state: "due", daysLeft: 6, tier: 7 } });
   });
 

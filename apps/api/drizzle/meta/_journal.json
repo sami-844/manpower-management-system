@@ -71,6 +71,20 @@
       "when": 1794252828984,
       "tag": "0009_sponsorship_authorisation_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794333706651,
+      "tag": "0010_document_masters",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794333726923,
+      "tag": "0011_document_masters_security",
+      "breakpoints": true
     }
   ]
 }

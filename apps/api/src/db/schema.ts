@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   numeric,
+  pgSequence,
   pgTable,
   primaryKey,
   text,
@@ -79,6 +80,8 @@ export const workerDocuments = pgTable(
     verified: boolean("verified").notNull().default(false),
     verifiedBy: text("verified_by"),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    // The current scan (PRD 4.19); replacing it points here at a new file, the old one is kept.
+    fileId: uuid("file_id").references(() => files.id, { onDelete: "restrict" }),
     ...timestamps,
   },
   (t) => [
@@ -86,7 +89,7 @@ export const workerDocuments = pgTable(
     index("worker_documents_expiry_idx").on(t.expiryDate),
     check(
       "worker_documents_type_ck",
-      sql`${t.type} in ('passport','residence_visa','labour_card','civil_id','medical','driving_licence','trade_certificate','insurance')`,
+      sql`${t.type} in ('passport','residence_visa','labour_card','civil_id','medical','driving_licence','trade_certificate','insurance','medical_insurance','sohar_gate_pass')`,
     ),
     check("worker_documents_dates_ck", sql`${t.issueDate} is null or ${t.expiryDate} is null or ${t.issueDate} <= ${t.expiryDate}`),
   ],
@@ -424,4 +427,104 @@ export const settings = pgTable(
     updatedBy: text("updated_by").notNull(),
   },
   (t) => [primaryKey({ columns: [t.entityId, t.key] })],
+);
+
+// ---------------------------------------------------------------------------------------------
+// Document masters (PRD 4.19, A26-A30): scans, the start of the client register, and the papers
+// of the company, its sub-contractors and its clients. Business tables: entity-scoped by RLS.
+// ---------------------------------------------------------------------------------------------
+
+/** Most a scan may be (TR-SEC-12). */
+export const MAX_FILE_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Uploaded files (Backend Schema "files"). The bytes live in the file store under `s3_key`
+ * (`<entity>/<id>`, never user input); a row is never updated by the app except its scan status.
+ */
+export const files = pgTable(
+  "files",
+  {
+    id: uuidV7(),
+    entityId,
+    s3Key: text("s3_key").notNull(),
+    originalName: text("original_name").notNull(),
+    sha256: text("sha256").notNull(),
+    mime: text("mime").notNull(),
+    bytes: integer("bytes").notNull(),
+    scanStatus: text("scan_status").notNull().default("pending"),
+    uploadedBy: text("uploaded_by").notNull(),
+    objectLockUntil: moment("object_lock_until"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("files_s3_key_uq").on(t.s3Key),
+    check("files_mime_ck", sql`${t.mime} in ('application/pdf','image/jpeg','image/png','image/heic')`),
+    check("files_bytes_ck", sql`${t.bytes} between 1 and ${sql.raw(String(MAX_FILE_BYTES))}`),
+    check("files_scan_status_ck", sql`${t.scanStatus} in ('pending','clean','infected')`),
+    check("files_sha256_ck", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("files_name_ck", sql`length(${t.originalName}) between 1 and 200`),
+  ],
+);
+
+export const clientCodeSeq = pgSequence("client_code_seq");
+
+/** The client register (Backend Schema "clients"), started for the client CR master (A26); grows in S6. */
+export const clients = pgTable(
+  "clients",
+  {
+    id: uuidV7(),
+    entityId,
+    code: text("code")
+      .notNull()
+      .default(sql`'C-' || lpad(nextval('client_code_seq')::text, 5, '0')`),
+    legalName: text("legal_name").notNull(),
+    crNumber: text("cr_number"),
+    vatNumber: text("vat_number"),
+    creditLimit: numeric("credit_limit", { precision: 14, scale: 3 }),
+    paymentTermsDays: integer("payment_terms_days").notNull().default(30),
+    status: text("status").notNull().default("active"),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+    updatedBy: text("updated_by").notNull(),
+  },
+  (t) => [
+    uniqueIndex("clients_code_uq").on(t.entityId, t.code),
+    uniqueIndex("clients_cr_uq").on(t.entityId, sql`lower(${t.crNumber})`).where(sql`${t.crNumber} is not null`),
+    check("clients_status_ck", sql`${t.status} in ('prospect','active','on_hold')`),
+    check("clients_terms_ck", sql`${t.paymentTermsDays} between 0 and 365`),
+    check("clients_credit_ck", sql`${t.creditLimit} is null or ${t.creditLimit} >= 0`),
+  ],
+);
+
+/** Papers of the company (its own sponsor row), a sub-contractor (an external sponsor) or a client. */
+export const organisationDocuments = pgTable(
+  "organisation_documents",
+  {
+    id: uuidV7(),
+    entityId,
+    sponsorId: uuid("sponsor_id").references(() => sponsors.id, { onDelete: "restrict" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "restrict" }),
+    type: text("type").notNull(),
+    number: text("number"),
+    issueDate: date("issue_date", { mode: "string" }),
+    expiryDate: date("expiry_date", { mode: "string" }),
+    verified: boolean("verified").notNull().default(false),
+    verifiedBy: text("verified_by"),
+    verifiedAt: moment("verified_at"),
+    fileId: uuid("file_id").references(() => files.id, { onDelete: "restrict" }),
+    ...timestamps,
+    createdBy: text("created_by").notNull(),
+  },
+  (t) => [
+    index("organisation_documents_sponsor_idx").on(t.sponsorId),
+    index("organisation_documents_client_idx").on(t.clientId),
+    index("organisation_documents_expiry_idx").on(t.expiryDate),
+    check("organisation_documents_owner_ck", sql`(${t.sponsorId} is null) <> (${t.clientId} is null)`),
+    check(
+      "organisation_documents_type_ck",
+      sql`${t.type} in ('commercial_registration','chamber_certificate','tax_card','vat_certificate','activity_licence','tenancy_agreement','municipality_licence','labour_authorisation')`,
+    ),
+    check("organisation_documents_dates_ck", sql`${t.issueDate} is null or ${t.expiryDate} is null or ${t.issueDate} <= ${t.expiryDate}`),
+    check("organisation_documents_verified_ck", sql`not ${t.verified} or (${t.verifiedBy} is not null and ${t.verifiedAt} is not null)`),
+  ],
 );
