@@ -84,7 +84,7 @@ Already done: a first working slice (worker files, the deployment check, renewal
 A production platform that is safe to hold real personal data. No real worker data enters any system before G1.
 
 - **AWS, built from code (Terraform):** separate production, staging and backup accounts. The Bun API runs on ECS Fargate, with RDS PostgreSQL (Multi-AZ), S3, KMS, WAF and Secrets Manager, all in the PDPL-approved region.
-- **Sign-in and roles:** the API's own sign-in, with mandatory authenticator-app 2FA for office staff and the owner (same design as the company's warehouse and hospital systems). All nine PRD roles and their site and client scopes are built and tested, but only the six Version 1 roles (owner, operations, HR/PRO, payroll, finance, admin) get accounts; supervisor, client and worker accounts open in Version 2.
+- **Sign-in and roles:** the API's own sign-in, with optional authenticator-app 2FA that office staff and the owner can each turn on in their settings (same design as the company's warehouse and hospital systems). All nine PRD roles and their site and client scopes are built and tested, but only the six Version 1 roles (owner, operations, HR/PRO, payroll, finance, admin) get accounts; supervisor, client and worker accounts open in Version 2.
 - **Data protection inside the database:** row-level security by entity, site and client; masking of passport, ID and bank numbers; encryption at rest.
 - **Recovery:** point-in-time recovery and backups to a locked account. The first full restore test happens in this phase.
 - **Monitoring:** logs, metrics, alerts, error tracking (Sentry) and uptime checks.

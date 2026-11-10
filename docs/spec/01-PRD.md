@@ -354,7 +354,7 @@ Oman's rules for expatriate pay are changing in 2026–2027, so every legal rule
 | Speed | 95% of screens load in < 1.5 s; search < 300 ms; payroll calculation for 700 workers < 2 minutes |
 | Availability | 99.9% monthly for web and API; the Version 2 supervisor app works fully offline for 72 hours |
 | Data safety | Point-in-time recovery to any minute in the last 30 days; daily backups kept 1 year; recovery point ≤ 5 min, recovery time ≤ 4 hours |
-| Security | Username, password and mandatory authenticator-app 2-factor for office users, with lockout and idle sessions ended by the server; role- and site-based access; encryption at rest and in transit; annual penetration test |
+| Security | Username and password, with optional authenticator-app 2-factor that each office user turns on or off in their own settings (A31), lockout and idle sessions ended by the server; role- and site-based access; encryption at rest and in transit; annual penetration test |
 | Audit | Every create, change, approval, export and login logged with who, when, before and after; logs tamper-evident and kept 10 years |
 | Privacy | AWS hosting in a PDPL-approved region; PDPL consent, notices and data-subject requests; masking of salary and ID numbers by role |
 | Devices | Desktop: Windows 10/11. Web: last 2 versions of Chrome, Edge, Safari. Mobile (Version 2): Android 9+ on 2 GB RAM, iOS 16+. App size < 30 MB |

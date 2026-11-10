@@ -27,7 +27,7 @@ Forty-three screens in Version 1 (S-01 to S-43) and four more in Version 2 (M-01
 
 | ID | Screen | Area | Main users | Front door | Purpose | Phase |
 |---|---|---|---|---|---|---|
-| S-01 | Sign in | Shell | Everyone | All | Sign in with username, password and authenticator code; the first sign-in replaces the temporary password and sets up the authenticator (phone code for supervisors and workers in Version 2) | 1 |
+| S-01 | Sign in | Shell | Everyone | All | Sign in with username and password, plus an authenticator code when the account has two-factor on; the first sign-in replaces the temporary password and never asks for two-factor, which is optional and set up in S-46 (A31) (phone code for supervisors and workers in Version 2) | 1 |
 | S-02 | Today | Shell | Office roles | Desktop | The user's work queue: tasks, approvals, alerts | 2 |
 | S-03 | Global search | Shell | Office roles | Desktop | Find any worker, client, invoice or document (Ctrl+K) | 2 |
 | S-04 | Notifications | Shell | Everyone | All | Alerts and messages, with read state | 2 |
@@ -72,6 +72,7 @@ Forty-three screens in Version 1 (S-01 to S-43) and four more in Version 2 (M-01
 | S-43 | Supply agreements | Commercial | Operations, finance | Desktop | Rates the company pays each outside sponsor, inclusions and versions | 3 |
 | S-44 | Document masters | Masters | HR/PRO, operations, finance, owner | Desktop, phone | The eighteen masters in three groups (In House, Purchase, Sales) with valid, due, expired and missing counts | 2 |
 | S-45 | Master register | Masters | HR/PRO, operations | Desktop | One master: every company or worker it covers, its latest document and state; record, renew, verify, upload or open the scan; add a client or sub-contractor | 2 |
+| S-46 | My account | Settings | Everyone | Desktop, phone | Who is signed in; turn two-factor sign-in on (authenticator app: QR code or typed key, then a first code and the password) or off (password and a fresh code); reached from the sidebar and the user menu | 1 |
 | M-01 | Crew today | Supervisor app | Supervisors | Phone | Whole-crew attendance in one screen, offline | V2 (11) |
 | M-02 | Requests and incidents | Supervisor app | Supervisors | Phone | Leave, advances, incidents with photos | V2 (11) |
 | C-01 | Client portal | Portal | Client contacts | Web | Approve timesheets, see workers, download invoices, place requests | V2 (11) |

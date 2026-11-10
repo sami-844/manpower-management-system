@@ -67,7 +67,7 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 
 **S1 Proofs (now running).** Tauri silent print to the office's actual printers from a queue of PDFs; record printer models and driver versions. Generate a WPS SIF file from fake data and validate it with Bank Muscat. Terraform the AWS accounts (prod, staging, dev, audit), SSO and guardrails in the chosen PDPL-approved region. Exit: three written proof reports.
 
-**S2 Foundation UI.** Create `packages/ui`; run `shadcn init` with Tailwind v4 and `rtl: true`; add tokens from the Design Brief; build the app shell (sidebar, top bar, command palette). Replace the slice's custom CSS with shadcn components (see the next section). Sign-in for office roles: passwords, authenticator 2FA, rotating sessions. Exit: all 17 web tests and e2e pass on the new UI.
+**S2 Foundation UI.** Create `packages/ui`; run `shadcn init` with Tailwind v4 and `rtl: true`; add tokens from the Design Brief; build the app shell (sidebar, top bar, command palette). Replace the slice's custom CSS with shadcn components (see the next section). Sign-in for office roles: passwords, optional authenticator 2FA (A31), rotating sessions. Exit: all 17 web tests and e2e pass on the new UI.
 
 **S3 Access and rules.** Role and permission tables, RLS policies, session variables per request, rule versions with effective dates, audit interceptor on every write. Exit: a test proves each role sees only its rows.
 

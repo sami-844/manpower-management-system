@@ -223,7 +223,7 @@ One REST API under `/api/v1`, described by OpenAPI 3.1 and generated from the co
 
 | Area | Resources |
 |---|---|
-| Platform | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/2fa/setup`, `/auth/2fa/confirm`, `/admin/users`, `/admin/users/{id}/reset-password`, `/admin/users/{id}/roles`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/masters`, `/masters/{key}`, `/notifications`, `/approvals`, `/jobs/{id}`, `/settings/outsourcing` |
+| Platform | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/2fa/setup`, `/auth/2fa/confirm`, `/auth/2fa/disable`, `/admin/users`, `/admin/users/{id}/reset-password`, `/admin/users/{id}/roles`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/masters`, `/masters/{key}`, `/notifications`, `/approvals`, `/jobs/{id}`, `/settings/outsourcing` |
 | Workforce | `/workers`, `/workers/{id}`, `/workers/{id}/documents`, `/documents/{id}/verify`, `/documents/{id}/scan`, `/workers/{id}/contracts`, `/workers/{id}/bank-accounts`, `/workers/{id}/status`, `/workers/{id}/sponsorships`, `/workers/{id}/sponsorships/{sid}/verify-authorisation`, `/sponsors` |
 | Compliance | `/compliance/check`, `/compliance/renewals`, `/workers/{id}/overrides`, `/gov-transactions`, `/absconding-reports` |
 | Commercial | `/clients`, `/clients/{id}`, `/organisation-documents`, `/organisation-documents/{id}/verify`, `/organisation-documents/{id}/scan`, `/clients/{id}/contacts`, `/sites`, `/contracts`, `/contracts/{id}/rate-cards`, `/requests`, `/supply-agreements`, `/supply-agreements/{id}/rates`, `/supply-agreements/{id}/approve` |
