@@ -268,6 +268,19 @@ describe("scans (TR-SEC-12)", () => {
     ]);
   });
 
+  it("un-verifies a verified document when someone who may not verify replaces its scan", async () => {
+    const doc = (await addOrgDoc({ kind: "company" }, { verified: true })).body;
+    const byOps = await upload(`/api/organisation-documents/${doc.id}/scan`, PDF, "application/pdf", "ops.manager");
+    expect(byOps.status).toBe(201);
+    expect(byOps.body.verified).toBe(false);
+    const row = (await master("company_registration")).body.rows[0];
+    expect(row.document).toMatchObject({ verified: false, verifiedBy: null, hasScan: true });
+    // HR (who may verify) re-verifies, and replacing the scan themselves keeps it verified.
+    await ctx.api("hr.lead").patch(`/api/organisation-documents/${doc.id}/verify`);
+    const byHr = await upload(`/api/organisation-documents/${doc.id}/scan`, PNG, "image/png", "hr.lead");
+    expect(byHr.body.verified).toBe(true);
+  });
+
   it("keeps the old scan when a new one replaces it", async () => {
     const doc = (await addOrgDoc({ kind: "company" })).body;
     const first = await upload(`/api/organisation-documents/${doc.id}/scan`, PDF);

@@ -264,14 +264,23 @@ export class MastersService {
 
   // ----- Scans --------------------------------------------------------------------------------
 
-  /** Attach a new scan to a document. The previous scan stays stored; the audit trail keeps both. */
-  async attachScan(kind: "worker" | "organisation", documentId: string, file: Upload, actor: string) {
+  /**
+   * Attach a new scan to a document. The previous scan stays stored; the audit trail keeps both.
+   * Verification vouches for a scan, so a new scan from someone who may not verify (operations)
+   * un-verifies the document until HR/PRO check it again.
+   */
+  async attachScan(kind: "worker" | "organisation", documentId: string, file: Upload, actor: string, grants: ReadonlySet<string>) {
     const table = kind === "worker" ? workerDocuments : organisationDocuments;
     return this.db.orm.transaction(async (tx) => {
       const [before] = await tx.select().from(table).where(eq(table.id, documentId)).for("update");
       if (!before) throw new NotFoundException("Document not found");
       const stored = await this.files.store(tx, file, actor);
-      const [after] = await tx.update(table).set({ fileId: stored.id, updatedAt: sql`now()` }).where(eq(table.id, documentId)).returning();
+      const keepVerified = grants.has("documents.verify");
+      const [after] = await tx
+        .update(table)
+        .set(keepVerified ? { fileId: stored.id, updatedAt: sql`now()` } : { fileId: stored.id, verified: false, verifiedBy: null, verifiedAt: null, updatedAt: sql`now()` })
+        .where(eq(table.id, documentId))
+        .returning();
       const view = (d: typeof before) => (kind === "worker" ? { ...d, number: maskNumber(d.number) } : d);
       await this.audit.record(tx, {
         actor,
@@ -281,7 +290,15 @@ export class MastersService {
         before: view(before),
         after: { ...view(after!), file: { id: stored.id, sha256: stored.sha256, mime: stored.mime, bytes: stored.bytes, scanStatus: stored.scanStatus } },
       });
-      return { documentId, fileId: stored.id, mime: stored.mime, bytes: stored.bytes, scanStatus: stored.scanStatus, originalName: stored.originalName };
+      return {
+        documentId,
+        fileId: stored.id,
+        mime: stored.mime,
+        bytes: stored.bytes,
+        scanStatus: stored.scanStatus,
+        originalName: stored.originalName,
+        verified: after!.verified,
+      };
     });
   }
 
@@ -483,8 +500,8 @@ export class MastersController {
 
   @RequirePermission("org_documents.manage")
   @Post("organisation-documents/:id/scan")
-  attachOrganisationScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string) {
-    return this.masters.attachScan("organisation", parseId(id), upload(req), actor);
+  attachOrganisationScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
+    return this.masters.attachScan("organisation", parseId(id), upload(req), actor, grants);
   }
 
   @RequirePermission("masters.read")
@@ -497,8 +514,8 @@ export class MastersController {
 
   @RequirePermission("documents.create")
   @Post("documents/:id/scan")
-  attachWorkerScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string) {
-    return this.masters.attachScan("worker", parseId(id), upload(req), actor);
+  attachWorkerScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
+    return this.masters.attachScan("worker", parseId(id), upload(req), actor, grants);
   }
 
   /** A worker's passport or ID scan shows personal data in full (TR-SEC-07). */
