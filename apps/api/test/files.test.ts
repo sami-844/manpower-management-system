@@ -32,16 +32,24 @@ describe("detectMime", () => {
 describe("cleanFileName", () => {
   it("keeps a readable name but drops any path, control characters and quotes", () => {
     expect(cleanFileName(encodeURIComponent("CR – 2026.pdf"), "application/pdf")).toBe("CR – 2026.pdf");
-    expect(cleanFileName("..\\..\\windows\\system.ini", "application/pdf")).toBe("system.ini");
-    expect(cleanFileName("../etc/passwd", "image/png")).toBe("passwd");
+    expect(cleanFileName("..\\..\\windows\\system.ini", "application/pdf")).toBe("system.ini.pdf");
+    expect(cleanFileName("../etc/passwd", "image/png")).toBe("passwd.png");
     expect(cleanFileName('a"b\u0007c.png', "image/png")).toBe("abc.png");
     expect(cleanFileName("x".repeat(300), "image/png")).toHaveLength(200);
+  });
+
+  it("drops right-to-left overrides and gives every name the extension of what the file really is", () => {
+    // "\u202Efdp.exe" displays as "exe.pdf" but would save as .exe.
+    expect(cleanFileName(encodeURIComponent("\u202Efdp.exe"), "application/pdf")).toBe("fdp.exe.pdf");
+    expect(cleanFileName("photo.JPEG", "image/jpeg")).toBe("photo.JPEG");
+    expect(cleanFileName("photo.png", "image/jpeg")).toBe("photo.png.jpg");
+    expect(cleanFileName("card.heif", "image/heic")).toBe("card.heif");
   });
 
   it("names a scan sent without a usable name after its type", () => {
     expect(cleanFileName(undefined, "image/jpeg")).toBe("scan.jpg");
     expect(cleanFileName("  ", "image/heic")).toBe("scan.heic");
-    expect(cleanFileName("%E0%A4%A", "application/pdf")).toBe("%E0%A4%A"); // not valid percent-encoding: kept as sent
+    expect(cleanFileName("%E0%A4%A", "application/pdf")).toBe("%E0%A4%A.pdf"); // not valid percent-encoding: kept as sent
   });
 });
 

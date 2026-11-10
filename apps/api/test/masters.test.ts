@@ -50,6 +50,8 @@ describe("the client register (A26)", () => {
     const dup = await ctx.api("finance.officer").post("/api/clients").send({ legalName: "Other Name", crNumber: "CR-777" });
     expect(dup.status).toBe(409);
     expect(dup.body.code).toBe("CLIENT_EXISTS");
+    // Spaces carry no meaning in a CR number.
+    expect((await ctx.api("ops.manager").post("/api/clients").send({ legalName: "Spaced LLC", crNumber: "cr - 777" })).status).toBe(409);
     const [event] = await ctx.db.base.select().from(auditEvents).where(eq(auditEvents.subjectId, res.body.id)).orderBy(asc(auditEvents.id));
     expect(event).toMatchObject({ action: "client.create", actor: "ops.manager" });
   });
@@ -99,10 +101,32 @@ describe("organisation documents", () => {
     expect(byHr.body).toMatchObject({ verified: true, verifiedBy: "hr.officer" });
   });
 
+  it("keeps the company's own papers to HR/PRO; operations record client and sub-contractor papers (A30)", async () => {
+    const byOps = await addOrgDoc({ kind: "company" }, {}, "ops.manager");
+    expect(byOps.status).toBe(403);
+    expect(byOps.body.code).toBe("COMPANY_DOCUMENTS_HR_ONLY");
+    const company = (await addOrgDoc({ kind: "company" })).body;
+    const rescan = await upload(`/api/organisation-documents/${company.id}/scan`, PDF, "application/pdf", "ops.manager");
+    expect(rescan.status).toBe(403);
+    expect(rescan.body.code).toBe("COMPANY_DOCUMENTS_HR_ONLY");
+    const sub = await addSubcontractor();
+    expect((await addOrgDoc({ kind: "subcontractor", sponsorId: sub.id }, {}, "ops.manager")).status).toBe(201);
+  });
+
+  it("refuses to verify a document twice, keeping whoever checked it first", async () => {
+    const doc = (await addOrgDoc({ kind: "company" })).body;
+    expect((await ctx.api("hr.officer").patch(`/api/organisation-documents/${doc.id}/verify`)).status).toBe(200);
+    const again = await ctx.api("hr.lead").patch(`/api/organisation-documents/${doc.id}/verify`);
+    expect(again.status).toBe(409);
+    expect(again.body.code).toBe("ALREADY_VERIFIED");
+    expect((await master("company_registration")).body.rows[0].document.verifiedBy).toBe("hr.officer");
+  });
+
   it("is recorded by HR/PRO and operations, verified by HR/PRO, and audited", async () => {
-    expect((await addOrgDoc({ kind: "company" }, {}, "payroll.officer")).status).toBe(403);
-    expect((await addOrgDoc({ kind: "company" }, {}, "finance.officer")).status).toBe(403);
-    const doc = await addOrgDoc({ kind: "company" }, {}, "ops.manager");
+    const client = await addClient();
+    expect((await addOrgDoc({ kind: "client", clientId: client.id }, {}, "payroll.officer")).status).toBe(403);
+    expect((await addOrgDoc({ kind: "client", clientId: client.id }, {}, "finance.officer")).status).toBe(403);
+    const doc = await addOrgDoc({ kind: "client", clientId: client.id }, {}, "ops.manager");
     expect(doc.status).toBe(201);
     expect((await ctx.api("ops.manager").patch(`/api/organisation-documents/${doc.body.id}/verify`)).status).toBe(403);
     const verified = await ctx.api("hr.lead").patch(`/api/organisation-documents/${doc.body.id}/verify`);
@@ -269,11 +293,12 @@ describe("scans (TR-SEC-12)", () => {
   });
 
   it("un-verifies a verified document when someone who may not verify replaces its scan", async () => {
-    const doc = (await addOrgDoc({ kind: "company" }, { verified: true })).body;
+    const client = await addClient();
+    const doc = (await addOrgDoc({ kind: "client", clientId: client.id }, { verified: true })).body;
     const byOps = await upload(`/api/organisation-documents/${doc.id}/scan`, PDF, "application/pdf", "ops.manager");
     expect(byOps.status).toBe(201);
     expect(byOps.body.verified).toBe(false);
-    const row = (await master("company_registration")).body.rows[0];
+    const row = (await master("client_registration")).body.rows[0];
     expect(row.document).toMatchObject({ verified: false, verifiedBy: null, hasScan: true });
     // HR (who may verify) re-verifies, and replacing the scan themselves keeps it verified.
     await ctx.api("hr.lead").patch(`/api/organisation-documents/${doc.id}/verify`);
@@ -309,6 +334,20 @@ describe("scans (TR-SEC-12)", () => {
     expect(await ctx.db.base.select().from(files)).toHaveLength(0);
   });
 
+  it("reads a scan only for a signed-in user on an upload route, and only uncompressed", async () => {
+    const doc = (await addOrgDoc({ kind: "company" })).body;
+    const path = `/api/organisation-documents/${doc.id}/scan`;
+    expect((await ctx.api(null).post(path).set("content-type", "application/pdf").send(PDF)).status).toBe(401);
+    // Signed out, or on any other route, a large body is never read: the answer comes without it and the
+    // connection may be cut while the sender is still writing. It is never parsed (that would be a 413).
+    const outcome = (r: Promise<{ status: number }>) => r.then((res) => res.status, (e: { code?: string }) => e.code);
+    const big = Buffer.alloc(16 * 1024 * 1024);
+    expect([401, "ECONNRESET", "EPIPE"]).toContain(await outcome(ctx.api(null).post(path).set("content-type", "application/pdf").send(big)));
+    expect([200, "ECONNRESET", "EPIPE"]).toContain(await outcome(ctx.api(null).get("/api/health").set("content-type", "application/pdf").send(big)));
+    const zipped = await ctx.api().post(path).set("content-type", "application/pdf").set("content-encoding", "gzip").send(PDF);
+    expect(zipped.status).toBe(415);
+  });
+
   it("refuses a file over 15 MB in the API's JSON shape", async () => {
     const doc = (await addOrgDoc({ kind: "company" })).body;
     const big = Buffer.concat([PDF, Buffer.alloc(15 * 1024 * 1024)]);
@@ -317,16 +356,23 @@ describe("scans (TR-SEC-12)", () => {
     expect(res.body.code).toBe("FILE_TOO_LARGE");
   });
 
-  it("never opens a file that has not been scanned clean", async () => {
+  it("never opens a file that has not been scanned clean, and a status only moves from pending to clean or infected", async () => {
     const doc = (await addOrgDoc({ kind: "company" })).body;
-    const up = await upload(`/api/organisation-documents/${doc.id}/scan`, PDF);
-    // As the production scanner would leave it until its verdict arrives (DEFERRED X15).
-    await ctx.db.sql`update files set scan_status = 'pending' where id = ${up.body.fileId}`;
+    const clean = await upload(`/api/organisation-documents/${doc.id}/scan`, PDF);
+    // A file as the production scanner leaves it until its verdict arrives (DEFERRED X15).
+    const [pending] = await ctx.db.sql<{ id: string }[]>`
+      insert into files (id, entity_id, s3_key, original_name, sha256, mime, bytes, scan_status, uploaded_by)
+      values (gen_random_uuid(), 'OM-01', ${`OM-01/${crypto.randomUUID()}`}, 'p.pdf', repeat('a', 64), 'application/pdf', 10, 'pending', 'test')
+      returning id`;
+    await ctx.db.sql`update organisation_documents set file_id = ${pending!.id} where id = ${doc.id}`;
     const res = await ctx.api().get(`/api/organisation-documents/${doc.id}/scan`);
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("FILE_NOT_SCANNED");
-    await ctx.db.sql`update files set scan_status = 'infected' where id = ${up.body.fileId}`;
+    await ctx.db.sql`update files set scan_status = 'infected' where id = ${pending!.id}`;
     expect((await ctx.api().get(`/api/organisation-documents/${doc.id}/scan`)).body.code).toBe("FILE_INFECTED");
+    // Nothing un-cleans or re-cleans a file.
+    await expect((async () => ctx.db.sql`update files set scan_status = 'pending' where id = ${clean.body.fileId}`)()).rejects.toThrow(/only moves from pending/);
+    await expect((async () => ctx.db.sql`update files set scan_status = 'clean' where id = ${pending!.id}`)()).rejects.toThrow(/only moves from pending/);
   });
 
   it("answers 404 when a document has no scan yet", async () => {

@@ -26,6 +26,13 @@ password change and authenticator set-up; every API route checks a permission; P
 row-level security scopes data by company. Sponsors and outsourced workers (PRD 4.18):
 API built, screens to follow (DEFERRED X13).
 
+Document masters (PRD 4.19, DECISIONS A26-A30): eighteen registers in three groups (In House,
+Purchase, Sales) for the company's papers, sub-contractors' and clients' CRs, and direct and
+indirect employees' passports, Oman ID cards, medical insurance and Sohar gate passes, with
+scans (checked for type and viruses, every opening audited) and the start of the client register.
+On an existing development database, `bun run --cwd apps/api db:seed -- --masters-only` adds the
+fictional masters data.
+
 Not built yet (next slices of Version 1, in PRD order):
 clients and rate cards, rostering, daily attendance sheets and timesheets, payroll and
 WPS, billing, ledger, owner dashboard. Version 2 (after go-live) adds the supervisor app,
@@ -129,6 +136,10 @@ bun run --filter @mms/desktop test:rust
 
 ## Before real data goes in
 
+- Scans: in production set `FILE_STORE_BUCKET` (the S3 bucket, encrypted with KMS, versioned,
+  malware-scanned) and `AWS_REGION`; the API refuses the development disk store and test scanner
+  there. Until the bucket's scan results are recorded (DEFERRED X15) new scans stay unopenable.
+  In development scans go to `FILE_STORE_DIR` (default: the system temp folder).
 - Set `AUTH_ACCESS_KEY` and `AUTH_SEAL_KEY` (base64, 32 bytes each, different) and
   `WEB_ORIGIN` in production; the API refuses to start without them. Create the first
   admin with `bun run --cwd apps/api auth:bootstrap-admin <username>`.

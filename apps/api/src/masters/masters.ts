@@ -14,6 +14,7 @@ import {
   Post,
   Req,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import {
   buildMasterRegister,
@@ -29,7 +30,7 @@ import {
   type MasterDefinition,
   type MasterSubject,
 } from "@mms/core";
-import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { AuditService } from "../audit/audit.service";
@@ -40,7 +41,7 @@ import { maskNumber } from "../common/mask";
 import { calendarDate, parse, parseId, uuid } from "../common/validation";
 import { DB, type Database, type Orm } from "../db/client";
 import { clients, files, organisationDocuments, sponsors, workerDocuments, workers, workerSponsorships } from "../db/schema";
-import { FilesService, SCAN_HEADERS, type Upload } from "../files/files";
+import { FilesService, SCAN_HEADERS, ScanBodyGuard, type Upload } from "../files/files";
 import { ensureOwnSponsor } from "../sponsors/sponsors";
 
 /**
@@ -53,6 +54,15 @@ const problem = (status: number, code: string, message: string) => new HttpExcep
 
 /** Workers a master covers: everyone who can be rostered today. */
 const ACTIVE_WORKER_STATUSES = ["available", "deployed", "on_leave"];
+
+const OWN_COMPANY_UNRECORDED = "Own company (record the legal name)";
+
+/** Recording or rescanning the company's own papers needs company_documents.manage (A30: HR/PRO only). */
+function assertCompanyDocuments(grants: ReadonlySet<string>): void {
+  if (!grants.has("company_documents.manage")) {
+    throw problem(HttpStatus.FORBIDDEN, "COMPANY_DOCUMENTS_HR_ONLY", "Only HR/PRO record the company's own papers.");
+  }
+}
 
 const isUniqueViolation = (e: unknown): boolean => {
   const err = e as { code?: string; cause?: { code?: string } };
@@ -69,11 +79,17 @@ const upload = (req: Request): Upload => ({
 // Schemas
 // ---------------------------------------------------------------------------------------------
 
+/** A CR number as registered: spaces carry no meaning, so "1234 567" and "1234567" are one company. */
+const crNumber = z
+  .string()
+  .transform((s) => s.replace(/\s+/g, ""))
+  .pipe(z.string().min(3).max(30));
+
 const decimal = z.string().regex(/^\d{1,11}(\.\d{1,3})?$/, "Must be an amount in OMR with at most 3 decimals");
 
 export const createClientSchema = z.object({
   legalName: z.string().trim().min(2).max(200),
-  crNumber: z.string().trim().min(3).max(30).optional(),
+  crNumber: crNumber.optional(),
   vatNumber: z.string().trim().min(3).max(30).optional(),
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
   creditLimit: decimal.optional(),
@@ -83,7 +99,7 @@ export const createClientSchema = z.object({
 export const updateClientSchema = z
   .object({
     legalName: z.string().trim().min(2).max(200),
-    crNumber: z.string().trim().min(3).max(30).nullable(),
+    crNumber: crNumber.nullable(),
     vatNumber: z.string().trim().min(3).max(30).nullable(),
     paymentTermsDays: z.number().int().min(0).max(365),
     creditLimit: decimal.nullable(),
@@ -232,7 +248,7 @@ export class MastersService {
           expiryDate: input.expiryDate ?? null,
           verified: input.verified,
           verifiedBy: input.verified ? actor : null,
-          verifiedAt: input.verified ? new Date() : null,
+          verifiedAt: input.verified ? new Date(this.clock.now()) : null,
           createdBy: actor,
         })
         .returning();
@@ -252,14 +268,27 @@ export class MastersService {
     return this.db.orm.transaction(async (tx) => {
       const [before] = await tx.select().from(organisationDocuments).where(eq(organisationDocuments.id, id)).for("update");
       if (!before) throw new NotFoundException("Document not found");
+      if (before.verified) {
+        throw problem(HttpStatus.CONFLICT, "ALREADY_VERIFIED", `Already verified by ${before.verifiedBy}.`);
+      }
       const [after] = await tx
         .update(organisationDocuments)
-        .set({ verified: true, verifiedBy: actor, verifiedAt: new Date(), updatedAt: sql`now()` })
+        .set({ verified: true, verifiedBy: actor, verifiedAt: new Date(this.clock.now()), updatedAt: sql`now()` })
         .where(eq(organisationDocuments.id, id))
         .returning();
       await this.audit.record(tx, { actor, action: "org_document.verify", subjectType: "organisation_document", subjectId: id, before, after });
       return after!;
     });
+  }
+
+  /** The company's own papers (masters 1-8) are HR/PRO's alone (A30); client and sub-contractor papers are not. */
+  private async assertMayManage(tx: Tx, documentId: string, grants: ReadonlySet<string>) {
+    const [owner] = await tx
+      .select({ kind: sponsors.kind })
+      .from(organisationDocuments)
+      .leftJoin(sponsors, eq(sponsors.id, organisationDocuments.sponsorId))
+      .where(eq(organisationDocuments.id, documentId));
+    if (owner?.kind === "own") assertCompanyDocuments(grants);
   }
 
   // ----- Scans --------------------------------------------------------------------------------
@@ -272,9 +301,13 @@ export class MastersService {
   async attachScan(kind: "worker" | "organisation", documentId: string, file: Upload, actor: string, grants: ReadonlySet<string>) {
     const table = kind === "worker" ? workerDocuments : organisationDocuments;
     return this.db.orm.transaction(async (tx) => {
+      const [found] = await tx.select({ id: table.id }).from(table).where(eq(table.id, documentId));
+      if (!found) throw new NotFoundException("Document not found");
+      if (kind === "organisation") await this.assertMayManage(tx, documentId, grants);
+      // Store first, then lock: the row is held only for the update, never while the bytes are written.
+      const stored = await this.files.store(tx, file, actor);
       const [before] = await tx.select().from(table).where(eq(table.id, documentId)).for("update");
       if (!before) throw new NotFoundException("Document not found");
-      const stored = await this.files.store(tx, file, actor);
       const keepVerified = grants.has("documents.verify");
       const [after] = await tx
         .update(table)
@@ -349,11 +382,14 @@ export class MastersService {
         .select({ d: workerDocuments, scanStatus: files.scanStatus })
         .from(workerDocuments)
         .leftJoin(files, eq(files.id, workerDocuments.fileId))
-        .where(inArray(workerDocuments.type, workerTypes)),
+        .where(inArray(workerDocuments.type, workerTypes))
+        // Equal expiries: the first one seen counts, so the most recently recorded comes first.
+        .orderBy(desc(workerDocuments.createdAt), desc(workerDocuments.id)),
       this.db.orm
         .select({ d: organisationDocuments, scanStatus: files.scanStatus })
         .from(organisationDocuments)
-        .leftJoin(files, eq(files.id, organisationDocuments.fileId)),
+        .leftJoin(files, eq(files.id, organisationDocuments.fileId))
+        .orderBy(desc(organisationDocuments.createdAt), desc(organisationDocuments.id)),
     ]);
 
     const subjects: Record<MasterSubject, Subject[]> = {
@@ -366,6 +402,9 @@ export class MastersService {
     for (const s of sponsorRows) {
       if (s.kind === "own") subjects.company.push({ id: s.id, kind: "company", name: s.legalName, code: s.crNumber, status: s.status, engagement: null, sponsorName: null });
       else if (s.status === "active") subjects.subcontractor.push({ id: s.id, kind: "subcontractor", name: s.legalName, code: s.crNumber, status: s.status, engagement: null, sponsorName: null });
+    }
+    if (!subjects.company.length) {
+      subjects.company.push({ id: "company-not-recorded", kind: "company", name: OWN_COMPANY_UNRECORDED, code: null, status: null, engagement: null, sponsorName: null });
     }
     for (const c of clientRows) {
       subjects.client.push({ id: c.id, kind: "client", name: c.legalName, code: c.code, status: c.status, engagement: null, sponsorName: null });
@@ -488,6 +527,7 @@ export class MastersController {
   addOrganisationDocument(@Body() body: unknown, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
     const input = parse(addOrganisationDocumentSchema, body);
     assertMayVerify(input.verified, grants);
+    if (input.subject.kind === "company") assertCompanyDocuments(grants);
     return this.masters.addOrganisationDocument(input, actor);
   }
 
@@ -499,6 +539,7 @@ export class MastersController {
   }
 
   @RequirePermission("org_documents.manage")
+  @UseGuards(ScanBodyGuard)
   @Post("organisation-documents/:id/scan")
   attachOrganisationScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
     return this.masters.attachScan("organisation", parseId(id), upload(req), actor, grants);
@@ -513,6 +554,7 @@ export class MastersController {
   }
 
   @RequirePermission("documents.create")
+  @UseGuards(ScanBodyGuard)
   @Post("documents/:id/scan")
   attachWorkerScan(@Param("id") id: string, @Req() req: Request, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
     return this.masters.attachScan("worker", parseId(id), upload(req), actor, grants);

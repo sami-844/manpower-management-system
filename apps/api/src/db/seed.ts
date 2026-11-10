@@ -132,7 +132,7 @@ async function seedMasters(db: Database, today: CalendarDate) {
   // Sub-contractors (Purchase master 13) and clients (Sales master 18).
   const subIds: string[] = [];
   for (const s of SUBCONTRACTORS) {
-    let [row] = await sql<{ id: string }[]>`select id from sponsors where lower(cr_number) = ${s.cr}`;
+    let [row] = await sql<{ id: string }[]>`select id from sponsors where entity_id = 'OM-01' and lower(cr_number) = ${s.cr}`;
     if (!row) {
       [row] = await sql<{ id: string }[]>`insert into sponsors (id, kind, legal_name, cr_number, mol_establishment_no, created_by, updated_by)
         values (${Bun.randomUUIDv7()}, 'external', ${s.legalName}, ${s.cr}, ${`EST-${s.cr}`}, ${by}, ${by}) returning id`;
@@ -141,7 +141,7 @@ async function seedMasters(db: Database, today: CalendarDate) {
     await paper({ sponsorId: row!.id }, "commercial_registration", s.cr, s.crExpiry);
   }
   for (const c of CLIENTS) {
-    let [row] = await sql<{ id: string }[]>`select id from clients where lower(cr_number) = ${c.cr}`;
+    let [row] = await sql<{ id: string }[]>`select id from clients where entity_id = 'OM-01' and lower(cr_number) = ${c.cr}`;
     if (!row) {
       [row] = await sql<{ id: string }[]>`insert into clients (id, legal_name, cr_number, vat_number, created_by, updated_by)
         values (${Bun.randomUUIDv7()}, ${c.legalName}, ${c.cr}, ${`OM11${c.cr}`}, ${by}, ${by}) returning id`;
@@ -156,12 +156,12 @@ async function seedMasters(db: Database, today: CalendarDate) {
 
   // A few indirect employees: every sixteenth active worker is supplied by a sub-contractor from today,
   // under a Ministry authorisation verified by someone other than its recorder.
-  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from worker_sponsorships where engagement <> 'own'`;
+  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from worker_sponsorships where entity_id = 'OM-01' and engagement <> 'own'`;
   if (count!.n === 0) {
     const candidates = await sql<{ id: string; sid: string }[]>`
       select w.id, s.id as sid from workers w
       join worker_sponsorships s on s.worker_id = w.id and s.valid_to is null and s.engagement = 'own' and s.valid_from < ${today}
-      where w.status in ('available','deployed','on_leave') order by w.code`;
+      where w.entity_id = 'OM-01' and w.status in ('available','deployed','on_leave') order by w.code`;
     const chosen = candidates.filter((_, i) => i % 16 === 0);
     for (const [i, c] of chosen.entries()) {
       await sql.begin(async (tx) => {
@@ -175,7 +175,7 @@ async function seedMasters(db: Database, today: CalendarDate) {
   // Oman ID cards and medical insurance for every worker who lacks them (A28; about 3% are left without
   // insurance so the masters show what "missing" looks like), and Sohar gate passes for about a quarter.
   const lacking = (type: string) =>
-    sql<{ id: string; code: string }[]>`select w.id, w.code from workers w where not exists (select 1 from worker_documents d where d.worker_id = w.id and d.type = ${type}) order by w.code`;
+    sql<{ id: string; code: string }[]>`select w.id, w.code from workers w where w.entity_id = 'OM-01' and not exists (select 1 from worker_documents d where d.worker_id = w.id and d.type = ${type}) order by w.code`;
   type Doc = { worker_id: string; type: string; number: string; expiry_date: string; verified: boolean };
   const docs: Doc[] = [];
   for (const w of await lacking("civil_id")) {

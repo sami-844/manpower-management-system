@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { HttpException, HttpStatus, Inject, Injectable, NotFoundException, StreamableFile } from "@nestjs/common";
+import { HttpException, HttpStatus, Inject, Injectable, NotFoundException, StreamableFile, type CanActivate, type ExecutionContext } from "@nestjs/common";
 import { eq, sql } from "drizzle-orm";
+import type { Request } from "express";
 import { DB, type Database, type Orm } from "../db/client";
 import { files, MAX_FILE_BYTES } from "../db/schema";
 
@@ -39,11 +40,22 @@ export function cleanFileName(name: string | undefined, mime: ScanMime): string 
   } catch {
     // Not percent-encoded: use it as sent.
   }
-  // eslint-disable-next-line no-control-regex
-  const base = decoded.split(/[\\/]/).pop()!.replace(/[\u0000-\u001f\u007f"]/g, "").trim().slice(0, 200);
-  const ext = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/heic": "heic" }[mime];
-  return base || `scan.${ext}`;
+  // Control and format characters (including right-to-left overrides that disguise an extension) and quotes go.
+  const base = decoded.split(/[\\/]/).pop()!.replace(/[\p{Cc}\p{Cf}"]/gu, "").trim().slice(0, 200);
+  const ext = EXTENSIONS[mime];
+  const main = ext[0]!;
+  if (!base) return `scan.${main}`;
+  const current = base.includes(".") ? base.slice(base.lastIndexOf(".") + 1).toLowerCase() : "";
+  // The name always ends in the extension of what the file really is.
+  return ext.includes(current) ? base : `${base.slice(0, 200 - main.length - 1)}.${main}`;
 }
+
+const EXTENSIONS: Record<ScanMime, string[]> = {
+  "application/pdf": ["pdf"],
+  "image/jpeg": ["jpg", "jpeg"],
+  "image/png": ["png"],
+  "image/heic": ["heic", "heif"],
+};
 
 // ---------------------------------------------------------------------------------------------
 // Where the bytes live
@@ -52,6 +64,8 @@ export function cleanFileName(name: string | undefined, mime: ScanMime): string 
 export interface FileStore {
   put(key: string, bytes: Uint8Array, mime: ScanMime): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  /** Throws if the store cannot be reached with the credentials it has (checked at start-up). */
+  ready(): Promise<void>;
 }
 
 export class DiskFileStore implements FileStore {
@@ -67,6 +81,10 @@ export class DiskFileStore implements FileStore {
     const path = this.path(key);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, bytes, { flag: "wx" }); // never overwrite a stored file
+  }
+
+  async ready(): Promise<void> {
+    await mkdir(this.root, { recursive: true });
   }
 
   async get(key: string): Promise<Uint8Array | null> {
@@ -92,6 +110,15 @@ export class S3FileStore implements FileStore {
 
   async put(key: string, bytes: Uint8Array, mime: ScanMime): Promise<void> {
     await this.client.write(key, bytes, { type: mime });
+  }
+
+  /**
+   * A HEAD request with the configured credentials: a missing object is fine, refused access is not.
+   * ponytail: Bun's S3 client reads keys from the environment; whether it also picks up an ECS task
+   * role is unverified (DEFERRED X20), so production fails at start-up rather than on the first upload.
+   */
+  async ready(): Promise<void> {
+    await this.client.exists("health/ready");
   }
 
   async get(key: string): Promise<Uint8Array | null> {
@@ -120,7 +147,7 @@ const EICAR = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$
  */
 export class SignatureScanner implements MalwareScanner {
   async scan(bytes: Uint8Array): Promise<ScanVerdict> {
-    return Buffer.from(bytes).includes(EICAR) ? "infected" : "clean";
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).includes(EICAR) ? "infected" : "clean";
   }
 }
 
@@ -197,7 +224,7 @@ export class FilesService {
     if (!Buffer.isBuffer(upload.bytes) || upload.bytes.length === 0) {
       throw problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_FILE", "Send the scan as the request body: a PDF, JPG, PNG or HEIC file.");
     }
-    const bytes = new Uint8Array(upload.bytes);
+    const bytes: Uint8Array = upload.bytes;
     if (bytes.length > MAX_FILE_BYTES) throw problem(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "A scan can be at most 15 MB.");
     const mime = detectMime(bytes);
     if (!mime || mime !== declared) {
@@ -263,3 +290,42 @@ export const SCAN_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "content-security-policy": "default-src 'none'; sandbox",
 };
+
+/**
+ * Reads a scan from the request body (PRD 4.19, TR-SEC-12). A route guard, so it runs after the
+ * sign-in and permission guard (no anonymous request is ever buffered) and before the request's
+ * database transaction opens (a slow upload never holds a connection). Only the upload routes use it.
+ */
+/** How much of an oversized upload is read and dropped before the connection is cut. */
+const DRAIN_CAP_BYTES = 4 * MAX_FILE_BYTES;
+
+@Injectable()
+export class ScanBodyGuard implements CanActivate {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<Request>();
+    const encoding = (req.headers["content-encoding"] ?? "identity").toString().toLowerCase();
+    if (encoding !== "identity") {
+      throw problem(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_FILE", "Send the scan uncompressed.");
+    }
+    const tooLarge = () => problem(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "A scan can be at most 15 MB.");
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req as AsyncIterable<Buffer>) {
+      size += chunk.length;
+      // Past the limit the rest is read and dropped, never kept, so the sender gets the 413 rather
+      // than a reset connection; past the drain cap the connection is simply cut.
+      if (size > MAX_FILE_BYTES) {
+        chunks.length = 0;
+        if (size > DRAIN_CAP_BYTES) {
+          req.destroy();
+          throw tooLarge();
+        }
+        continue;
+      }
+      chunks.push(chunk);
+    }
+    if (size > MAX_FILE_BYTES) throw tooLarge();
+    req.body = Buffer.concat(chunks, size);
+    return true;
+  }
+}

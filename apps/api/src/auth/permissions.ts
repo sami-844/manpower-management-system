@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   "clients.read",
   "clients.manage",
   "pii.view",
+  "company_documents.manage",
 ] as const;
 export type PermissionKey = (typeof PERMISSIONS)[number];
 
