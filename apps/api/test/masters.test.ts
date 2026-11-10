@@ -90,6 +90,15 @@ describe("organisation documents", () => {
     expect((await addOrgDoc({ kind: "company" }, { issueDate: "2027-01-01", expiryDate: "2026-01-01" })).status).toBe(400);
   });
 
+  it("lets only someone who may verify record a document as already verified", async () => {
+    const byOps = await addOrgDoc({ kind: "company" }, { verified: true }, "ops.manager");
+    expect(byOps.status).toBe(403);
+    expect(byOps.body.code).toBe("VERIFY_NOT_ALLOWED");
+    const byHr = await addOrgDoc({ kind: "company" }, { verified: true }, "hr.officer");
+    expect(byHr.status).toBe(201);
+    expect(byHr.body).toMatchObject({ verified: true, verifiedBy: "hr.officer" });
+  });
+
   it("is recorded by HR/PRO and operations, verified by HR/PRO, and audited", async () => {
     expect((await addOrgDoc({ kind: "company" }, {}, "payroll.officer")).status).toBe(403);
     expect((await addOrgDoc({ kind: "company" }, {}, "finance.officer")).status).toBe(403);

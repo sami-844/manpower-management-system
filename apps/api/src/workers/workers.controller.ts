@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import { RequirePermission } from "../auth/permissions";
-import { Actor } from "../common/actor";
+import { Actor, assertMayVerify, Grants } from "../common/actor";
 import { parse, parseId } from "../common/validation";
 import {
   addDocumentSchema,
@@ -34,8 +34,10 @@ export class WorkersController {
 
   @RequirePermission("documents.create")
   @Post("workers/:id/documents")
-  addDocument(@Param("id") id: string, @Body() body: unknown, @Actor() actor: string) {
-    return this.workers.addDocument(parseId(id), parse(addDocumentSchema, body), actor);
+  addDocument(@Param("id") id: string, @Body() body: unknown, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
+    const input = parse(addDocumentSchema, body);
+    assertMayVerify(input.verified, grants);
+    return this.workers.addDocument(parseId(id), input, actor);
   }
 
   @RequirePermission("leave.create")

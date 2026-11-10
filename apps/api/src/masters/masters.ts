@@ -34,7 +34,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { AuditService } from "../audit/audit.service";
 import { RequirePermission } from "../auth/permissions";
-import { Actor } from "../common/actor";
+import { Actor, assertMayVerify, Grants } from "../common/actor";
 import { CLOCK, type Clock } from "../common/clock";
 import { maskNumber } from "../common/mask";
 import { calendarDate, parse, parseId, uuid } from "../common/validation";
@@ -468,8 +468,10 @@ export class MastersController {
 
   @RequirePermission("org_documents.manage")
   @Post("organisation-documents")
-  addOrganisationDocument(@Body() body: unknown, @Actor() actor: string) {
-    return this.masters.addOrganisationDocument(parse(addOrganisationDocumentSchema, body), actor);
+  addOrganisationDocument(@Body() body: unknown, @Actor() actor: string, @Grants() grants: ReadonlySet<string>) {
+    const input = parse(addOrganisationDocumentSchema, body);
+    assertMayVerify(input.verified, grants);
+    return this.masters.addOrganisationDocument(input, actor);
   }
 
   @RequirePermission("documents.verify")
