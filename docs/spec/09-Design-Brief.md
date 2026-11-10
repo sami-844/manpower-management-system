@@ -90,7 +90,7 @@ Engagement is not a status. A worker who is not the company's own shows a neutra
 
 ## Layouts
 
-- **Office app shell:** left sidebar (Dashboard, Workers, Compliance, Clients, Roster, Timesheets, Payroll, Billing, Finance, Reports, Settings), top bar with breadcrumb, Ctrl+K search, notifications and user menu. Content area is a list with a filter bar, opening a sheet on the right for the selected record.
+- **Office app shell:** left sidebar (Dashboard, Workers, Compliance, Masters, Clients, Roster, Timesheets, Payroll, Billing, Finance, Reports, Settings), top bar with breadcrumb, Ctrl+K search, notifications and user menu. Content area is a list with a filter bar, opening a sheet on the right for the selected record.
 - **List screens:** title and primary action top-right; saved views as tabs; filter chips; table; bulk actions bar appears when rows are selected (print, export, assign).
 - **Detail pages:** header with name, code, status badge and key actions; tabs (Overview, Documents, Assignments, Time, Pay, History).
 - **Dashboards:** row of four number cards, then two charts, then "needs attention" lists that link straight to the fix.

@@ -27,7 +27,7 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 | S1 | 1–12 Nov 2026 | Proofs: silent printing on office printers, Bank Muscat WPS sample file, AWS landing zone | Desktop prints 50 payslips with no dialog |
 | S2 | 15–26 Nov | Foundation: `packages/ui` with shadcn and tokens; first slice migrated; sign-in with 2FA | Worker list in the new shell, signed in |
 | S3 | 29 Nov–10 Dec | Roles, RLS, rules engine, audit on every write; G0 sign-off | Permission matrix enforced end to end |
-| S4 | 13–24 Dec | Worker file complete: contracts, bank accounts, document capture; sponsor register and each worker's sponsor and engagement | HR creates a full worker file in under 5 minutes |
+| S4 | 13–24 Dec | Worker file complete: contracts, bank accounts, document capture; sponsor register and each worker's sponsor and engagement; the eighteen document masters | HR creates a full worker file in under 5 minutes |
 | S5 | 27 Dec 2026–7 Jan 2027 | Renewals board, government transactions, CI/CD to staging; G1 | Renewal tasks auto-created and tracked |
 | S6 | 10–21 Jan | Clients, sites, contracts, rate cards; supply agreements with outside sponsors | Rate card with OT and Friday rates |
 | S7 | 24 Jan–4 Feb | Absconding process, overrides with approval, authorisation and transfer checks for outsourced workers, workforce reports | Blocked worker cannot be assigned; an outsourced worker without an authorisation cannot either |
@@ -71,11 +71,11 @@ Sprints run Sunday to Thursday over two weeks. Demo is the second Thursday; plan
 
 **S3 Access and rules.** Role and permission tables, RLS policies, session variables per request, rule versions with effective dates, audit interceptor on every write. Exit: a test proves each role sees only its rows.
 
-**S4 Worker file.** Contracts, bank accounts with IBAN check, document upload with S3 presigned URLs and virus scan, masked numbers with reveal logging. Exit: worker file under 5 minutes in a timed usability test.
+**S4 Worker file.** Contracts, bank accounts with IBAN check, document upload through the API (file type checked from its bytes, 15 MB, virus scan before anyone can open it, stored in S3), masked numbers with reveal logging. The document masters (PRD 4.19): company, sub-contractor and client documents, the worker masters split by engagement, and the start of the client register. Exit: worker file under 5 minutes in a timed usability test.
 
 **S5 Renewals and pipeline.** Renewal board with 90/60/30/7-day tiers, government transaction tracker, GitHub Actions deploying to staging on merge with migrations and smoke tests. Exit: G1 signed.
 
-**S6 Commercial.** Clients, contacts, sites with required documents, contracts and rate cards with versions. Exit: rate card change creates a new version, not an edit.
+**S6 Commercial.** Clients (the register started in S4 grows contacts, credit and the client screens), contacts, sites with required documents, contracts and rate cards with versions. Exit: rate card change creates a new version, not an edit.
 
 ## Moving the first slice to shadcn and Aceternity (S2)
 

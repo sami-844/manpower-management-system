@@ -54,7 +54,8 @@ Three records anchor everything — the Worker, the Client contract, and the loc
 |---|---|---|---|
 | Workforce | Worker | code, names (Latin + Arabic), nationality, DOB, trade, skill level, status, languages, phone | has many Documents, Assignments, Contracts of employment |
 | Workforce | EmploymentContract | basic wage, allowances, hours, leave terms, ticket entitlement, valid_from/to | belongs to Worker; versioned on every pay change (drives WPS contract match) |
-| Workforce | Document / DocumentType | type, number, issue, expiry, file versions, verified_by, mandatory_for (trades, sites) | belongs to Worker; feeds the compliance engine |
+| Workforce | Document / DocumentType | type (passport, residence visa, labour card, Oman ID card, medical fitness, medical insurance, Sohar gate pass and others), number, issue, expiry, file versions, verified_by, mandatory_for (trades, sites) | belongs to Worker; feeds the compliance engine and the worker masters |
+| Workforce | OrganisationDocument | type (CR, chamber certificate, tax card, VAT certificate, activity licence, tenancy agreement, municipality licence, labour authorisation), number, issue, expiry, scan, verified_by | belongs to a Sponsor (the company itself or a sub-contractor) or a Client; feeds the document masters (PRD 4.19) |
 | Workforce | BankAccount | bank, IBAN/account (encrypted), verification status, valid_from | belongs to Worker; changes need 2-person approval |
 | Workforce | Sponsor | kind (own, external), legal name, CR number, Ministry of Labour establishment number, documents with expiry | One own row per entity; has many WorkerSponsorships and SupplyAgreements |
 | Workforce | WorkerSponsorship | sponsor, engagement (own, supplied, transferred, free_visa), authorisation reference and file, consent file, valid_from/to | belongs to Worker; decides who pays the worker and which rules apply |

@@ -42,7 +42,7 @@ A worker is placed on a site through an **assignment**, which links the worker t
 | `rule_tables` | `key` (e.g. `overtime.day`, `savings.rate`), `description`, `owner_role` | One row per legal or pay rule |
 | `rule_versions` | `rule_key`, `entity_id`, `params jsonb`, `valid_from`, `valid_to`, `signed_by`, `signed_at`, `source_ref` | No overlapping versions; a version can't be used until it is signed; every calculation stores the version it used |
 | `audit_events` **built** | `id bigserial`, `actor`, `action`, `subject_type`, `subject_id`, `before`, `after`, `at`, `prev_hash`, `hash` | Append-only by trigger; SHA-256 chain, version 2 (hash_version) also hashing the entity; never truncated; row-level security by entity, with the chain linked through audit_last_hash() |
-| `files` | `id`, `s3_key`, `sha256`, `mime`, `bytes`, `scan_status` (pending, clean, infected), `uploaded_by`, `object_lock_until NULL` | A file can't be opened until scanned clean |
+| `files` **built** | `id`, `s3_key`, `original_name`, `sha256`, `mime`, `bytes`, `scan_status` (pending, clean, infected), `uploaded_by`, `object_lock_until NULL` | A file can't be opened until scanned clean; `mime` is PDF, JPEG, PNG or HEIC, checked against the file's first bytes, up to 15 MB; the key is `<entity>/<id>`, never user input; the app never updates or deletes a file |
 | `notifications` | `id`, `user_id`, `kind`, `subject_type`, `subject_id`, `title`, `body`, `read_at` | In-app notifications |
 | `message_deliveries` | `id`, `channel` (whatsapp, sms, email, push), `recipient`, `template`, `status`, `provider_ref`, `attempts`, `last_error` | One row per outgoing message, with delivery and read status |
 | `outbox_events` | `id`, `topic`, `payload jsonb`, `created_at`, `published_at NULL` | Written in the same transaction as the change; published by a job |
@@ -57,11 +57,12 @@ A worker is placed on a site through an **assignment**, which links the worker t
 |---|---|---|
 | `workers` **built** | `id`, `code` (W-000001), `full_name`, `full_name_ar`, `nationality`, `trade`, `status`, `phone`, `date_of_birth`, `joined_on` | Status is one of in_recruitment, available, deployed, on_leave, absconding_reported, exited; changes go through the status service |
 | `worker_status_history` | `worker_id`, `status`, `valid_from`, `valid_to`, `reason`, `changed_by` | No overlaps; the current row has `valid_to` empty |
-| `worker_documents` **built** | `id`, `worker_id`, `type`, `number` (encrypted), `issue_date`, `expiry_date`, `verified`, `verified_by`, `verified_at`, `file_id` | Expiry on or after issue; the latest expiry per type is the one that counts |
+| `worker_documents` **built** | `id`, `worker_id`, `type`, `number` (encrypted), `issue_date`, `expiry_date`, `verified`, `verified_by`, `verified_at`, `file_id` | Expiry on or after issue; the latest expiry per type is the one that counts; types include `civil_id` (Oman ID card), `medical_insurance` and `sohar_gate_pass` |
 | `document_types` | `key`, `label`, `mandatory`, `required_for_trades text[]`, `alert_tiers int[]` | Reference data, replacing the code list over time |
 | `employment_contracts` | `id`, `worker_id`, `basic_wage`, `allowances jsonb`, `hours_per_week`, `leave_days`, `ticket_entitlement`, `valid_from`, `valid_to`, `file_id` | A new version for every pay change; WPS checks paid wage against this |
 | `worker_bank_accounts` | `id`, `worker_id`, `bank`, `iban` (encrypted), `status` (pending, verified), `requested_by`, `approved_by`, `valid_from` | Requester and approver must differ |
 | `sponsors` | `id`, `kind` (own, external), `legal_name`, `cr_number`, `mol_establishment_no`, `supplier_id NULL`, `status` | One `own` row per entity, created with it; an external sponsor the company pays links to `suppliers`; its CR and licence are documents with expiry dates |
+| `organisation_documents` **built** | `id`, `sponsor_id NULL`, `client_id NULL`, `type` (commercial_registration, chamber_certificate, tax_card, vat_certificate, activity_licence, tenancy_agreement, municipality_licence, labour_authorisation), `number`, `issue_date`, `expiry_date`, `verified`, `verified_by`, `verified_at`, `file_id NULL`, `created_by` | Belongs to exactly one sponsor (the own sponsor is the company) or one client (CHECK); expiry on or after issue; the latest expiry per owner and type counts (PRD 4.19) |
 | `worker_sponsorships` | `id`, `worker_id`, `sponsor_id NULL`, `engagement` (own, supplied, transferred, free_visa), `supply_agreement_id NULL`, `authorisation_ref NULL`, `authorisation_verified_by NULL`, `authorisation_verified_at NULL`, `authorisation_file_id NULL`, `consent_file_id NULL`, `valid_from`, `valid_to` | No overlaps per worker (exclusion constraint); `own` only with an own sponsor; `sponsor_id` may be unknown only for `free_visa`; an authorisation counts once someone other than its recorder has verified it (CHECK); a supplied or transferred row without a verified authorisation, and every `free_visa` row, raises the Unauthorised blocker in `checkEligibility` |
 | `worker_family` | `worker_id`, `name`, `relation`, `phone`, `is_emergency_contact` |  |
 | `worker_skills` | `worker_id`, `trade`, `level` (1–5), `certified_until` | Feeds matching |
@@ -74,7 +75,7 @@ A worker is placed on a site through an **assignment**, which links the worker t
 
 | Table | Key columns | Rules |
 |---|---|---|
-| `clients` | `id`, `code`, `legal_name`, `cr_number`, `vat_number`, `credit_limit`, `payment_terms_days`, `status` |  |
+| `clients` **built** | `id`, `code` (C-00001), `legal_name`, `cr_number`, `vat_number`, `credit_limit`, `payment_terms_days`, `status` (prospect, active, on_hold) | Code from `client_code_seq`; CR number unique per entity |
 | `client_contacts` | `id`, `client_id`, `name`, `email`, `phone`, `can_approve_timesheets`, `user_id NULL` | A contact with a `user_id` can sign in to the portal (Version 2); in Version 1 contacts receive timesheet packs and invoices by email |
 | `sites` **built** | `id`, `code`, `name`, `client_id`, `required_documents text[]`, `geofence geography NULL`, `address` | `client_name` in the first slice becomes `client_id` in Phase 3 |
 | `client_contracts` | `id`, `client_id`, `reference`, `start_date`, `end_date`, `auto_approve_days`, `min_billable_hours`, `escalation_date`, `file_id` |  |
@@ -222,12 +223,12 @@ One REST API under `/api/v1`, described by OpenAPI 3.1 and generated from the co
 
 | Area | Resources |
 |---|---|
-| Platform | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/2fa/setup`, `/auth/2fa/confirm`, `/admin/users`, `/admin/users/{id}/reset-password`, `/admin/users/{id}/roles`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/notifications`, `/approvals`, `/jobs/{id}`, `/settings/outsourcing` |
-| Workforce | `/workers`, `/workers/{id}`, `/workers/{id}/documents`, `/documents/{id}/verify`, `/workers/{id}/contracts`, `/workers/{id}/bank-accounts`, `/workers/{id}/status`, `/workers/{id}/sponsorships`, `/workers/{id}/sponsorships/{sid}/verify-authorisation`, `/sponsors` |
+| Platform | `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/change-password`, `/auth/2fa/setup`, `/auth/2fa/confirm`, `/admin/users`, `/admin/users/{id}/reset-password`, `/admin/users/{id}/roles`, `/roles`, `/rules`, `/rules/{key}/versions`, `/audit`, `/audit/verify`, `/files`, `/masters`, `/masters/{key}`, `/notifications`, `/approvals`, `/jobs/{id}`, `/settings/outsourcing` |
+| Workforce | `/workers`, `/workers/{id}`, `/workers/{id}/documents`, `/documents/{id}/verify`, `/documents/{id}/scan`, `/workers/{id}/contracts`, `/workers/{id}/bank-accounts`, `/workers/{id}/status`, `/workers/{id}/sponsorships`, `/workers/{id}/sponsorships/{sid}/verify-authorisation`, `/sponsors` |
 | Compliance | `/compliance/check`, `/compliance/renewals`, `/workers/{id}/overrides`, `/gov-transactions`, `/absconding-reports` |
-| Commercial | `/clients`, `/clients/{id}/contacts`, `/sites`, `/contracts`, `/contracts/{id}/rate-cards`, `/requests`, `/supply-agreements`, `/supply-agreements/{id}/rates`, `/supply-agreements/{id}/approve` |
+| Commercial | `/clients`, `/clients/{id}`, `/organisation-documents`, `/organisation-documents/{id}/verify`, `/organisation-documents/{id}/scan`, `/clients/{id}/contacts`, `/sites`, `/contracts`, `/contracts/{id}/rate-cards`, `/requests`, `/supply-agreements`, `/supply-agreements/{id}/rates`, `/supply-agreements/{id}/approve` |
 | Operations | `/assignments`, `/requests/{id}/matches`, `/roster?site=&from=&to=`, `/bench` |
-| Time | `/``daily-sheets`, `/daily-sheets/{id}/entries`, `/timesheet-packs`, `/attendance-events` (bulk upload from the supervisor app in Version 2), `/timesheets`, `/timesheets/{id}/approve`, `/timesheets/{id}/disputes`, `/leave-requests`, `/leave-balances` |
+| Time | `/daily-sheets`, `/daily-sheets/{id}/entries`, `/timesheet-packs`, `/attendance-events` (bulk upload from the supervisor app in Version 2), `/timesheets`, `/timesheets/{id}/approve`, `/timesheets/{id}/disputes`, `/leave-requests`, `/leave-balances` |
 | Payroll | `/pay-periods`, `/payroll-runs`, `/payroll-runs/{id}/calculate`, `/payroll-runs/{id}/approve`, `/payroll-runs/{id}/release`, `/payslips/{id}`, `/wps-files`, `/loans`, `/separations`, `/separations/{id}/settlement` |
 | Billing and finance | `/invoices`, `/invoices/generate`, `/invoices/{id}/issue`, `/credit-notes`, `/payments`, `/journals`, `/fiscal-periods/{id}/close`, `/supplier-bills`, `/supplier-bills/{id}/match`, `/cash-pay-lists`, `/bank-statements` |
 | Insight | `/dashboard`, `/reports/{key}` |

@@ -103,6 +103,7 @@ Every worker's file and papers live in the system, correct, and policed by the c
 - **Document vault:** scans with version history, passport reading by OCR, duplicate detection.
 - **Government work:** transaction tracker, Omanisation ratio against requirement, absconding workflow, override approvals.
 - **Sponsors:** the sponsor register, and each worker's sponsor and engagement (own, supplied, transferred) with the Ministry authorisation or registered transfer behind it; a worker without one, or on a free visa, shows as Unauthorised and needs the owner's approval before rostering (PRD 4.18).
+- **Document masters:** eighteen registers in three groups (In House: the company's papers and direct employees' passports, Oman ID cards, medical insurance and Sohar gate passes; Purchase: sub-contractors' CRs and indirect employees' papers; Sales: clients' CRs), each with its scans and expiry state (PRD 4.19).
 - **Renewal alerts** at 90, 60, 30 and 7 days, by WhatsApp, SMS and email to HR, the supervisor and the worker.
 - **Import tool:** a validation report on every row. The cleaned worker files go into staging, and HR fixes every rejected row.
 

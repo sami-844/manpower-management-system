@@ -134,6 +134,7 @@ The Technical Spec explains how and why the system is built the way it is. This 
 | TR-ENG-12 | `checkEligibility()` blocks a worker on every date their engagement is supplied or transferred unless a Ministry authorisation or a registered transfer covers that date. Transfers are also checked against Ministerial Decision 730/2024 (at most 6 months per worker per year, at least 6 months' prior service, work permit valid at least 6 more months, worker's consent on file), read from a dated rule version. A free-visa engagement always raises the blocker. Only an override approved by the owner clears it, and only while the company setting allows it (A22); when set to block, nothing does. | MUST | Core tests across the authorisation dates; golden cases signed by the labour lawyer |
 | TR-ENG-13 | Payroll pays a worker only for dates on which their engagement is own or transferred. A supplied or free-visa worker never gets a payslip or a WPS line; a free-visa worker paid directly is paid from a separate cash pay list with a signed receipt. | MUST | Property test over mixed engagements; golden payroll cases |
 | TR-ENG-14 | Each line of a sponsor's labour bill equals a locked timesheet line times its matching supply rate line; a locked line appears on at most one sponsor bill; a bill with an unmatched or different line cannot be approved without a finance reason, and a sponsor company's bill cannot be approved without its WPS proof file. | MUST | Golden cases; property tests; database test of the unique index |
+| TR-ENG-15 | Each document master (PRD 4.19) shows, for every company, client or worker it covers, the document with the latest expiry and its state (valid, due, expired, no expiry date, missing) on the given day. A worker is counted in the direct or indirect master by their engagement that day, and a master's counts equal its rows. | MUST | Engine tests on the master catalogue; API tests per master |
 
 ## 8. Development, testing and release
 
@@ -156,7 +157,7 @@ Each PRD non-negotiable and goal is covered by the requirements below, so a fail
 
 | PRD goal | Technical requirements |
 |---|---|
-| Zero lapsed documents | TR-ENG-02, TR-ENG-12, TR-PLT-09, TR-SEC-04, TR-DAT-01, TR-INT-05 |
+| Zero lapsed documents | TR-ENG-02, TR-ENG-12, TR-ENG-15, TR-PLT-09, TR-SEC-04, TR-DAT-01, TR-INT-05 |
 | Pay right, on time, every month | TR-ENG-01, TR-ENG-03 to 06, TR-ENG-09 to 11, TR-ENG-13, TR-INT-01 to 03, TR-PER-04, TR-SEC-06 |
 | Bill every hour | TR-ENG-07, TR-ENG-08, TR-ENG-14, TR-CLI-14, TR-CLI-15, TR-INT-07, TR-PER-05, TR-DAT-03 |
 | Workers kept informed | TR-INT-05, TR-INT-06, TR-PER-08 |

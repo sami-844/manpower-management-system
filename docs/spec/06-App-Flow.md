@@ -70,6 +70,8 @@ Forty-three screens in Version 1 (S-01 to S-43) and four more in Version 2 (M-01
 | S-41 | Client timesheet packs | Time | Operations | Desktop | Email packs to clients, record signed approvals, chase late ones | 5 |
 | S-42 | Sponsors | Workforce | HR/PRO, operations, owner | Desktop, phone | Every sponsor with its documents, authorisations and how many deployed workers it holds | 2 |
 | S-43 | Supply agreements | Commercial | Operations, finance | Desktop | Rates the company pays each outside sponsor, inclusions and versions | 3 |
+| S-44 | Document masters | Masters | HR/PRO, operations, finance, owner | Desktop, phone | The eighteen masters in three groups (In House, Purchase, Sales) with valid, due, expired and missing counts | 2 |
+| S-45 | Master register | Masters | HR/PRO, operations | Desktop | One master: every company or worker it covers, its latest document and state; record, renew, verify, upload or open the scan; add a client or sub-contractor | 2 |
 | M-01 | Crew today | Supervisor app | Supervisors | Phone | Whole-crew attendance in one screen, offline | V2 (11) |
 | M-02 | Requests and incidents | Supervisor app | Supervisors | Phone | Leave, advances, incidents with photos | V2 (11) |
 | C-01 | Client portal | Portal | Client contacts | Web | Approve timesheets, see workers, download invoices, place requests | V2 (11) |

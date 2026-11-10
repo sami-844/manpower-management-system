@@ -104,12 +104,13 @@ Nine roles cover everyone who touches the system; each sees only what their job 
 
 ## 4. Functional requirements by module
 
-Eighteen modules share one worker record, one client record and one ledger of hours — nothing is typed twice. P1 = Version 1 (launch) unless a module is marked Version 2; P2 = after Version 2; P3 = later (see Release plan).
+Nineteen modules share one worker record, one client record and one ledger of hours — nothing is typed twice. P1 = Version 1 (launch) unless a module is marked Version 2; P2 = after Version 2; P3 = later (see Release plan).
 
 ### 4.1 Worker master and document vault — P1
 
 - One profile per worker: identity, nationality, photos, family/next-of-kin, bank account, trade and skill levels, certifications, languages, medical fitness, current status (in recruitment, available, deployed, on leave, absconding-reported, exited).
-- Document vault with typed documents (passport, visa/residence card, labour card, civil ID, medical, driving licence, trade certificates, insurance, contract), each with number, issue/expiry date, scan, and verification status.
+- Document vault with typed documents (passport, visa/residence card, labour card, Oman ID card (civil ID), medical fitness, medical insurance, Sohar gate pass, driving licence, trade certificates, insurance, contract), each with number, issue/expiry date, scan, and verification status.
+- Every worker, own or outsourced, must hold a valid passport, residence visa, labour card, medical fitness certificate, Oman ID card and medical insurance before they can be rostered. A site can require more: sites inside Sohar port and freezone require a Sohar gate pass.
 - OCR on upload of passports and ID cards to pre-fill fields; machine-readable-zone check on passports.
 - Full history: every deployment, pay change, warning, leave, incident and document version, never overwritten.
 - Duplicate detection on passport number, civil ID and biometric template.
@@ -251,6 +252,25 @@ When its own workers are not enough, the company uses workers sponsored by other
 - Owner dashboard: headcount own and outsourced by sponsor, margin on outsourced hours, amounts owed to sponsors, and authorisations ending within 30 days.
 - "Free visa" working is recorded as what it is, by the company's decision against the legal advice in section 6: the engagement, the Unauthorised badge, the owner's approval and every payment show on screen and in the audit trail. Nothing hides these workers from an inspection.
 
+### 4.19 Document masters — P1
+
+The company keeps eighteen registers of documents, called masters, grouped by the department that owns them. Each master lists every company or person the document belongs to, with its number, issue and expiry dates, scan, who verified it, and a status: valid, due (inside the 90/60/30/7-day alert tiers), expired, no expiry date recorded, or missing.
+
+| Group | Master | Whose document |
+|---|---|---|
+| In House | 1 Company registration certificate · 2 Chamber of Commerce & Industry certificate · 3 Tax card · 4 VAT certificate · 5 Activity licence · 6 Tenancy agreement · 7 Municipality licence · 8 Labour authorisation | The company itself (its own sponsor record, 4.18) |
+| In House | 9 Direct employee passport · 10 Direct employee Oman ID card · 11 Direct employee medical insurance · 12 Direct employee Sohar gate pass | Direct employees: workers whose engagement is own |
+| Purchase | 13 Sub-contractor company registration certificate | Sub-contractors: the outside sponsors whose workers the company uses (4.18) |
+| Purchase | 14 Indirect employee passport · 15 Indirect employee Oman ID card · 16 Indirect employee medical insurance · 17 Indirect employee Sohar gate pass | Indirect employees: supplied, transferred and free-visa workers |
+| Sales | 18 Client company registration certificate | Clients (4.4) |
+
+- One record per document: a renewal is a new document, and the one with the latest expiry counts. Nothing is overwritten. Scans follow the upload rules (PDF, JPG, PNG or HEIC up to 15 MB, the real file type checked, virus-scanned before anyone can open them), and every opening of a scan is audited.
+- Worker masters are views of the document vault (4.1). A passport recorded on the worker file appears in master 9 or 14 according to the worker's engagement that day, and moves if the engagement changes. Numbers show only their last 4 characters, and opening a passport or ID scan needs the personal-data permission.
+- The company, each active sub-contractor and each client must hold every master that applies to them, and a missing one is counted. Every active worker must hold a passport, Oman ID card and medical insurance (4.1). A Sohar gate pass is needed only on sites that require it, so masters 12 and 17 list the passes held and count no one as missing.
+- One overview shows the eighteen masters in their three groups with counts of valid, due, expired and missing; each opens its register, where documents are recorded, renewed, verified and their scans uploaded or opened.
+- HR/PRO record and renew documents; operations also record client and sub-contractor papers and add clients and sub-contractors. The owner, operations and finance see every master.
+- The client register starts here with code, legal name, CR number, VAT number, payment terms and status, so master 18 holds real clients; contacts, sites, contracts and rate cards join it in sprint S6.
+
 ## 5. Core workflows
 
 A worker moves through five states in their life with the company, and every month their deployed days turn into one locked timesheet that feeds payroll and billing at the same time.
@@ -390,4 +410,5 @@ The biggest risk is not the software but dirty starting data and staff who keep 
 - [ ] Name one business owner per module (HR/PRO, ops, payroll, finance) with authority to sign off requirements.
 - [ ] Approve the phased release plan and the parallel-payroll period.
 - [x] Decide whether sponsors and outsourced workers (4.18) ship in Version 1, and list every establishment that sponsors a worker the company deploys today, related companies included.
+- [x] Decide the document masters (4.19): eighteen masters in Version 1, scans stored, passport, Oman ID card and medical insurance required for every worker, sub-contractors being the outside sponsors.
 - [ ] Ask the labour lawyer to confirm the lawful routes in section 6 (article 29 authorisation, 730/2024 transfer), including whether deploying the company's own workers to client sites needs article 29 authorisation.
