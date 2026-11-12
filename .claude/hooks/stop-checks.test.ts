@@ -25,9 +25,9 @@ describe("stop-checks: only the checks the edits owe", () => {
     expect(names(["apps/web/src/styles.css"])).toEqual([]);
   });
 
-  test("hook or script edits → tooling tests", () => {
-    expect(names([".claude/hooks/guard.ts"])).toEqual(["tooling tests"]);
-    expect(names(["scripts/agent-doctor.ts"])).toEqual(["tooling tests"]);
+  test("hook or script edits → tooling typecheck and tests", () => {
+    expect(names([".claude/hooks/guard.ts"])).toEqual(["typecheck tooling", "tooling tests"]);
+    expect(names(["scripts/agent-doctor.ts"])).toEqual(["typecheck tooling", "tooling tests"]);
   });
 
   test("spooler Rust → fmt, clippy and tests for the spooler, then the shell that depends on it", () =>

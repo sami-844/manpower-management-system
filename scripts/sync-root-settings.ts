@@ -28,9 +28,9 @@ export function rootCommand(cmd: string): string {
 
 /** Path rules are relative to the open folder; `./**` rules already cover the whole tree. */
 export function rootRule(rule: string): string {
-  const m = rule.match(/^(Read|Edit)\((.*)\)$/);
-  if (!m || m[2].startsWith("./**/")) return rule;
-  return `${m[1]}(./${SUB}/${m[2].replace(/^\.\//, "")})`;
+  const [, tool, path] = rule.match(/^(Read|Edit)\((.*)\)$/) ?? [];
+  if (!tool || path === undefined || path.startsWith("./**/")) return rule;
+  return `${tool}(./${SUB}/${path.replace(/^\.\//, "")})`;
 }
 
 export function rootSettings(project: any, local: any = {}): any {

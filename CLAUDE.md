@@ -212,7 +212,7 @@ docker compose up -d        # local PostgreSQL 16
 bun run db:migrate && bun run db:seed
 bun run gates               # repository rules (also runs after every agent edit)
 bun run typecheck && bun run test
-bun run test:tooling        # hook tests
+bun run test:tooling        # hook and script tests (`bun run typecheck` also typechecks them)
 bun run test:mutation       # core mutation score (CI gate 80 %)
 bun run --filter @mms/desktop lint:rust   # Rust fmt + clippy -D warnings, both crates
 bun run --filter @mms/desktop test:rust   # print spooler tests

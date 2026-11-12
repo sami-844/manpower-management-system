@@ -72,7 +72,7 @@ export function checkGolden(before: string | null, after: string | null): string
 
 function lockedMigrations(root: string, read: Reader): Set<string> {
   const lock = read(join(root, "apps/api/drizzle/migrations.lock")) ?? "";
-  return new Set([...lock.matchAll(/^[0-9a-f]{64}\s+(\S+)$/gm)].map((m) => m[1]));
+  return new Set([...lock.matchAll(/^[0-9a-f]{64}\s+(\S+)$/gm)].flatMap((m) => (m[1] ? [m[1]] : [])));
 }
 
 /** Returns a reason to block, or null to allow. */
@@ -90,8 +90,8 @@ export function check(call: ToolCall, root: string, read: Reader = defaultReader
   if (rel === "apps/api/drizzle/migrations.lock")
     return "migrations.lock is written only by `bun run gates --update-lock`, never by hand";
 
-  const mig = rel.match(/^apps\/api\/drizzle\/(\d{4}_[^/]+\.sql)$/);
-  if (mig && lockedMigrations(root, read).has(mig[1]))
+  const mig = rel.match(/^apps\/api\/drizzle\/(\d{4}_[^/]+\.sql)$/)?.[1];
+  if (mig && lockedMigrations(root, read).has(mig))
     return `${rel} is an applied migration and is never edited (CLAUDE.md rule 9) — write the next numbered migration instead`;
 
   if (/(^|\/)golden\/[^/]+\.json$/.test(rel)) {

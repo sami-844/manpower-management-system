@@ -3,11 +3,12 @@ import { check, checkGolden, type ToolCall } from "./guard";
 
 const ROOT = "/repo";
 const LOCK = `${"a".repeat(64)}  0000_init.sql\n${"b".repeat(64)}  0001_audit.sql\n`;
+const EOS = JSON.stringify({
+  cases: [{ id: "eos-1", input: { years: 3 }, expected: "450.000", signedBy: "Payroll officer", signedOn: "2027-01-10" }],
+});
 const files: Record<string, string> = {
   "/repo/apps/api/drizzle/migrations.lock": LOCK,
-  "/repo/packages/core/golden/eos.json": JSON.stringify({
-    cases: [{ id: "eos-1", input: { years: 3 }, expected: "450.000", signedBy: "Payroll officer", signedOn: "2027-01-10" }],
-  }),
+  "/repo/packages/core/golden/eos.json": EOS,
 };
 // path.join gives backslashes on Windows; the fake file map is keyed with forward slashes.
 const read = (p: string) => files[p.replaceAll("\\", "/")] ?? null;
@@ -49,12 +50,12 @@ describe("guard: golden cases (rule 4)", () => {
     expect(check(write(path, JSON.stringify({ cases: [] })), ROOT, read)).toContain("removed");
   });
   test("blocks a new case with a non-null expected value", () => {
-    const next = JSON.parse(files[path]);
+    const next = JSON.parse(EOS);
     next.cases.push({ id: "eos-2", input: { years: 5 }, expected: "750.000" });
     expect(check(write(path, JSON.stringify(next)), ROOT, read)).toContain('"expected": null');
   });
   test("allows a new case with expected: null", () => {
-    const next = JSON.parse(files[path]);
+    const next = JSON.parse(EOS);
     next.cases.push({ id: "eos-2", input: { years: 5 }, expected: null });
     expect(check(write(path, JSON.stringify(next)), ROOT, read)).toBeNull();
   });

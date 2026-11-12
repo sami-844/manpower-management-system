@@ -12,10 +12,12 @@ const read = (p: string) => (existsSync(join(root, p)) ? readFileSync(join(root,
 
 const progress = read("docs/PROGRESS.md");
 const header = progress.split("\n").filter((l) => /^\*\*(Release|Current phase|Current sprint|Current step|Last session|Gates on)/.test(l));
-const blocked = (progress.split(/^## Blocked\s*$/m)[1] ?? "").split(/^## /m)[0].split("\n").filter((l) => l.startsWith("- "));
+/** The text between a heading and the next matching heading ("" when the heading is missing). */
+const section = (text: string, start: RegExp, end: RegExp) => (text.split(start)[1] ?? "").split(end)[0] ?? "";
+const blocked = section(progress, /^## Blocked\s*$/m, /^## /m).split("\n").filter((l) => l.startsWith("- "));
 
 const decisions = read("docs/DECISIONS.md");
-const open = (decisions.split(/^## UNANSWERED\s*$/m)[1] ?? "").split(/^## ANSWERED/m)[0].match(/^### D\d+ — .+$/gm) ?? [];
+const open = section(decisions, /^## UNANSWERED\s*$/m, /^## ANSWERED/m).match(/^### D\d+ — .+$/gm) ?? [];
 
 const lines = [
   "Manpower Management System — build state at session start (from docs/PROGRESS.md and docs/DECISIONS.md).",

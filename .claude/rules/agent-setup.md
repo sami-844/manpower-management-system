@@ -72,7 +72,7 @@ Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spe
 
 ## Permissions (`.claude/settings.json`)
 
-- **Allowed without asking:** gates, typecheck, tests, the doctor, and read-only git.
+- **Allowed without asking:** gates, typecheck (workspaces and tooling), tests, the doctor, read-only git, and `cargo fmt`/`clippy`/`test`/`check` (they only build and read; the Stop hook and `lint:rust` run them).
 - **Asks first:** `git push`, `gates --update-lock`, `db:migrate`, `bun add`, and edits to the desktop security surface (`apps/desktop/src-tauri/capabilities/**`, `tauri.conf.json`).
 - **Denied:** reading `.env` files; npm, npx, pnpm and yarn; force-push; `git reset --hard`; `rm -rf`.
 - Personal exceptions (and plugins you turn off for this project) go in `.claude/settings.local.json` (git-ignored), never in the shared file.

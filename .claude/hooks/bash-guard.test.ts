@@ -41,8 +41,8 @@ describe("bash-guard: blocks only while dev servers listen", () => {
 
 describe("bash-guard: port probe", () => {
   test("finds a listening port and ignores a closed one", async () => {
-    const server = createServer().listen(0, "127.0.0.1");
-    await new Promise((r) => server.once("listening", r));
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const port = (server.address() as { port: number }).port;
     try {
       expect(await listeningPorts([port, 1])).toEqual([port]);

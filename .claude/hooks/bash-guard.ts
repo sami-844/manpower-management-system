@@ -19,10 +19,10 @@ const NEW_BRANCH_AT_HEAD = /^\s*-[cbCB]\s+[^\s-]\S*\s*$/;
 /** The git subcommand that would rewrite files, or null. */
 export function rewritingGit(command: string): string | null {
   if (HARD_RESET.test(command)) return "reset";
-  const m = command.match(REWRITES);
-  if (!m) return null;
-  if ((m[1] === "switch" || m[1] === "checkout") && NEW_BRANCH_AT_HEAD.test(m[2])) return null;
-  return m[1];
+  const [, sub, rest = ""] = command.match(REWRITES) ?? [];
+  if (!sub) return null;
+  if ((sub === "switch" || sub === "checkout") && NEW_BRANCH_AT_HEAD.test(rest)) return null;
+  return sub;
 }
 
 /** Returns a reason to block, or null to allow. */

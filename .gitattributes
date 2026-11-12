@@ -4,3 +4,5 @@
 # checkout and CI compute the same hashes.
 *.sql text eol=lf
 apps/api/drizzle/migrations.lock text eol=lf
+# Written by `graphify hook install`. graphify-out/ is git-ignored, so this only matters if the graph is ever committed.
+graphify-out/graph.json merge=graphify

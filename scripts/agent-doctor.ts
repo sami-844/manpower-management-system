@@ -16,7 +16,7 @@ const onPath = (bin: string) => Bun.which(bin) !== null;
 const json = (p: string) => { try { return JSON.parse(readFileSync(join(ROOT, p), "utf8")); } catch (e) { say("FAIL", `${p}: not valid JSON (${(e as Error).message})`); return null; } };
 
 // Bun
-const [maj, min] = Bun.version.split(".").map(Number);
+const [maj = 0, min = 0] = Bun.version.split(".").map(Number);
 say(maj > 1 || (maj === 1 && min >= 4) ? "PASS" : "FAIL", `Bun ${Bun.version} (need ≥ 1.4)`);
 
 // Skills
@@ -85,7 +85,7 @@ const ignored = Bun.spawnSync(["git", "check-ignore", "-q", ".claude/settings.lo
 say(ignored ? "PASS" : "FAIL", `.claude/settings.local.json ${ignored ? "is git-ignored" : "is NOT git-ignored — add it to .gitignore"}`);
 
 // Code intelligence and Rust tools behind the LSP plugins and the Stop hook
-for (const [bin, fix] of [["typescript-language-server", "bun add -g typescript-language-server typescript@<project version>"], ["rust-analyzer", "rustup component add rust-analyzer"]])
+for (const [bin, fix] of [["typescript-language-server", "bun add -g typescript-language-server typescript@<project version>"], ["rust-analyzer", "rustup component add rust-analyzer"]] as const)
   say(onPath(bin) ? "PASS" : "WARN", `LSP ${bin} ${onPath(bin) ? "on PATH" : `not on PATH — the LSP plugin can't start (${fix})`}`);
 if (onPath("cargo")) {
   for (const sub of ["fmt", "clippy"]) {

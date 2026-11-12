@@ -25,7 +25,7 @@ export function editLog(sessionId: string): string {
   return join(dir, `${sessionId.replace(/[^\w-]/g, "_")}.txt`);
 }
 
-const cargo = (crate: string, ...args: string[]) => ["cargo", args[0], "--manifest-path", `apps/desktop/${crate}/Cargo.toml`, ...args.slice(1)];
+const cargo = (crate: string, sub: string, ...args: string[]) => ["cargo", sub, "--manifest-path", `apps/desktop/${crate}/Cargo.toml`, ...args];
 const rustChecks = (crate: string): Check[] => [
   { name: `rustfmt ${crate}`, cmd: cargo(crate, "fmt", "--check") },
   { name: `clippy ${crate}`, cmd: cargo(crate, "clippy", "--all-targets", "--message-format=short", "--", "-D", "warnings") },
@@ -44,7 +44,8 @@ export function checksFor(paths: string[]): Check[] {
   if (under("apps/web/", ts)) typecheck.add("web");
   for (const w of typecheck) out.push({ name: `typecheck @mms/${w}`, cmd: ["bun", "run", "--filter", `@mms/${w}`, "typecheck"] });
 
-  if (under(".claude/hooks/") || under("scripts/")) out.push({ name: "tooling tests", cmd: ["bun", "test", "./.claude/hooks", "./scripts"] });
+  if (under(".claude/hooks/") || under("scripts/"))
+    out.push({ name: "typecheck tooling", cmd: ["bun", "run", "typecheck:tooling"] }, { name: "tooling tests", cmd: ["bun", "test", "./.claude/hooks", "./scripts"] });
 
   const spooler = under("apps/desktop/print-spooler/", rust);
   const shell = under("apps/desktop/src-tauri/", (p) => rust(p) || p.endsWith("tauri.conf.json") || p.includes("/capabilities/"));

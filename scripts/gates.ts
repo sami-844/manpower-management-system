@@ -59,8 +59,8 @@ function readLock(): Map<string, string> {
   const lock = new Map<string, string>();
   if (!existsSync(LOCK)) return lock;
   for (const line of readFileSync(LOCK, "utf8").split("\n")) {
-    const m = line.match(/^([0-9a-f]{64})\s+(\S+)$/);
-    if (m) lock.set(m[2], m[1]);
+    const [, hash, file] = line.match(/^([0-9a-f]{64})\s+(\S+)$/) ?? [];
+    if (hash && file) lock.set(file, hash);
   }
   return lock;
 }
@@ -174,7 +174,7 @@ function gateColours() {
 // ---------------------------------------------------------------------------
 const SPOOLER = join(ROOT, "apps/desktop/print-spooler/src");
 const DESKTOP = join(ROOT, "apps/desktop/src-tauri/src");
-const stripRustComments = (s: string) => s.split(/#\[cfg\(test\)\]/)[0].replace(/\/\/.*$/gm, "");
+const stripRustComments = (s: string) => (s.split(/#\[cfg\(test\)\]/)[0] ?? "").replace(/\/\/.*$/gm, "");
 function gateSpoolerPanics() {
   const files = walk(SPOOLER, (p) => p.endsWith(".rs") && !p.endsWith("/tests.rs"));
   scanLines(files, "G9 spooler never panics", /\.unwrap\(\)|\.expect\(|\b(panic|unreachable|todo|unimplemented)!\(/,
@@ -189,7 +189,7 @@ function gateSpoolerPanics() {
 function gateDesktopCommands() {
   const gate = "G10 desktop commands wired";
   const rust = walk(DESKTOP, (p) => p.endsWith(".rs")).map((f) => [f, stripRustComments(readFileSync(f, "utf8"))] as const);
-  const defined = new Set(rust.flatMap(([, s]) => [...s.matchAll(/#\[tauri::command\][\s\S]*?\bfn\s+(\w+)/g)].map((m) => m[1])));
+  const defined = new Set(rust.flatMap(([, s]) => [...s.matchAll(/#\[tauri::command\][\s\S]*?\bfn\s+(\w+)/g)].flatMap((m) => m[1] ?? [])));
   const handler = rust.map(([f, s]) => [f, s.match(/generate_handler!\[([^\]]*)\]/)?.[1]] as const).find(([, h]) => h !== undefined);
   if (!handler) { if (defined.size) fail({ gate, detail: "commands are defined but no generate_handler![…] registers them" }); return; }
   const registered = new Set(handler[1]!.split(",").map((n) => n.trim().split("::").pop()!).filter(Boolean));
@@ -197,8 +197,8 @@ function gateDesktopCommands() {
   for (const n of registered) if (!defined.has(n)) fail({ gate, file: rel(handler[0]), detail: `generate_handler! lists ${n}, which is not a #[tauri::command]` });
   for (const f of walk(join(ROOT, "apps/web/src"), (p) => /\.tsx?$/.test(p) && !/\.test\.tsx?$/.test(p))) {
     readFileSync(f, "utf8").split("\n").forEach((line, i) => {
-      for (const m of line.matchAll(/\binvoke(?:<[^>]*>)?\(\s*["'](\w+)["']/g))
-        if (!registered.has(m[1])) fail({ gate, file: rel(f), line: i + 1, detail: `invoke("${m[1]}") has no registered desktop command` });
+      for (const [, name = ""] of line.matchAll(/\binvoke(?:<[^>]*>)?\(\s*["'](\w+)["']/g))
+        if (!registered.has(name)) fail({ gate, file: rel(f), line: i + 1, detail: `invoke("${name}") has no registered desktop command` });
     });
   }
 }

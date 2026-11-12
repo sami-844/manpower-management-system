@@ -85,7 +85,7 @@ function cavemanSkill(name: string): string | null {
 /** Code names the prompt mentions, in order: `backticked`, camelCase, PascalCase, snake_case, source paths. */
 export function seeds(prompt: string): string[] {
   const found = [...prompt.matchAll(/`([^`\s]+)`|([\w/.-]+\.(?:tsx?|rs|sql))\b|\b([a-z]+[A-Z]\w*|[A-Z][a-z]+[A-Z]\w*|[a-z]+_[a-z_]+)\b/g)]
-    .map((m) => m[1] ?? m[2] ?? m[3]);
+    .flatMap((m) => m[1] ?? m[2] ?? m[3] ?? []);
   return [...new Set(found)].slice(0, 3);
 }
 
