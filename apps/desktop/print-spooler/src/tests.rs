@@ -37,12 +37,18 @@ impl PrintBackend for FakeBackend {
 
 fn docs(n: usize) -> Vec<PrintDocument> {
     (1..=n)
-        .map(|i| PrintDocument { name: format!("payslip-{i:03}.pdf"), bytes: PDF.to_vec() })
+        .map(|i| PrintDocument {
+            name: format!("payslip-{i:03}.pdf"),
+            bytes: PDF.to_vec(),
+        })
         .collect()
 }
 
 fn profile(printer: &str) -> PrinterProfile {
-    PrinterProfile { printer: printer.into(), mode: RenderMode::Direct }
+    PrinterProfile {
+        printer: printer.into(),
+        mode: RenderMode::Direct,
+    }
 }
 
 #[test]
@@ -52,14 +58,33 @@ fn prints_every_document_to_the_named_printer_in_order() {
     assert_eq!(report.submitted.len(), 3);
     assert!(report.failed.is_empty());
     assert!(!report.cancelled);
-    let names: Vec<_> = backend.submitted.borrow().iter().map(|(p, n, _)| format!("{p}:{n}")).collect();
-    assert_eq!(names, ["Office HP:payslip-001.pdf", "Office HP:payslip-002.pdf", "Office HP:payslip-003.pdf"]);
+    let names: Vec<_> = backend
+        .submitted
+        .borrow()
+        .iter()
+        .map(|(p, n, _)| format!("{p}:{n}"))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "Office HP:payslip-001.pdf",
+            "Office HP:payslip-002.pdf",
+            "Office HP:payslip-003.pdf"
+        ]
+    );
 }
 
 #[test]
 fn refuses_an_unknown_printer_before_printing_anything() {
     let backend = FakeBackend::with_printers(&["Office HP"]);
-    let err = print_batch(&backend, &profile("Missing printer"), &docs(2), |_| {}, None).unwrap_err();
+    let err = print_batch(
+        &backend,
+        &profile("Missing printer"),
+        &docs(2),
+        |_| {},
+        None,
+    )
+    .unwrap_err();
     assert_eq!(err, BatchError::PrinterNotFound("Missing printer".into()));
     assert!(backend.submitted.borrow().is_empty());
 }
@@ -67,17 +92,26 @@ fn refuses_an_unknown_printer_before_printing_anything() {
 #[test]
 fn refuses_an_empty_batch() {
     let backend = FakeBackend::with_printers(&["Office HP"]);
-    assert_eq!(print_batch(&backend, &profile("Office HP"), &[], |_| {}, None).unwrap_err(), BatchError::EmptyBatch);
+    assert_eq!(
+        print_batch(&backend, &profile("Office HP"), &[], |_| {}, None).unwrap_err(),
+        BatchError::EmptyBatch
+    );
 }
 
 #[test]
 fn checks_every_file_is_a_pdf_before_printing_any() {
     let backend = FakeBackend::with_printers(&["Office HP"]);
     let mut batch = docs(3);
-    batch[2] = PrintDocument { name: "notes.txt".into(), bytes: b"hello".to_vec() };
+    batch[2] = PrintDocument {
+        name: "notes.txt".into(),
+        bytes: b"hello".to_vec(),
+    };
     let err = print_batch(&backend, &profile("Office HP"), &batch, |_| {}, None).unwrap_err();
     assert_eq!(err, BatchError::NotPdf("notes.txt".into()));
-    assert!(backend.submitted.borrow().is_empty(), "no half-printed batches");
+    assert!(
+        backend.submitted.borrow().is_empty(),
+        "no half-printed batches"
+    );
 }
 
 #[test]
@@ -86,14 +120,24 @@ fn keeps_going_after_one_document_fails_and_reports_it() {
     backend.fail_on = vec!["payslip-002.pdf".into()];
     let report = print_batch(&backend, &profile("Office HP"), &docs(3), |_| {}, None).unwrap();
     assert_eq!(report.submitted.len(), 2);
-    assert_eq!(report.failed, vec![("payslip-002.pdf".to_string(), "paper jam".to_string())]);
+    assert_eq!(
+        report.failed,
+        vec![("payslip-002.pdf".to_string(), "paper jam".to_string())]
+    );
 }
 
 #[test]
 fn reports_progress_after_each_document() {
     let backend = FakeBackend::with_printers(&["Office HP"]);
     let mut seen = vec![];
-    print_batch(&backend, &profile("Office HP"), &docs(3), |p| seen.push((p.done, p.total, p.current.clone())), None).unwrap();
+    print_batch(
+        &backend,
+        &profile("Office HP"),
+        &docs(3),
+        |p| seen.push((p.done, p.total, p.current.clone())),
+        None,
+    )
+    .unwrap();
     assert_eq!(
         seen,
         vec![
@@ -128,7 +172,10 @@ fn stops_when_cancelled_and_says_so() {
 #[test]
 fn uses_the_profile_render_mode() {
     let backend = FakeBackend::with_printers(&["Old laser"]);
-    let p = PrinterProfile { printer: "Old laser".into(), mode: RenderMode::PostScript };
+    let p = PrinterProfile {
+        printer: "Old laser".into(),
+        mode: RenderMode::PostScript,
+    };
     print_batch(&backend, &p, &docs(1), |_| {}, None).unwrap();
     assert_eq!(backend.submitted.borrow()[0].2, RenderMode::PostScript);
 }

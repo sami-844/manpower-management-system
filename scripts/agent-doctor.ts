@@ -68,6 +68,67 @@ if (mcp) {
   }
 }
 
+// Path-scoped rules: without `paths:` a rule file loads every session, which defeats the split
+const rulesDir = join(ROOT, ".claude/rules");
+for (const r of existsSync(rulesDir) ? readdirSync(rulesDir).filter((f) => f.endsWith(".md")) : []) {
+  const fm = readFileSync(join(rulesDir, r), "utf8").match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
+  say(/^paths:/m.test(fm) ? "PASS" : "WARN", `rule ${r}: ${/^paths:/m.test(fm) ? "path-scoped" : "no paths: front matter, so it loads every session"}`);
+}
+
+// The hub keeps every numbered rule (reviews cite them by number)
+const hub = readFileSync(join(ROOT, "CLAUDE.md"), "utf8");
+const missingRules = Array.from({ length: 13 }, (_, i) => i + 1).filter((n) => !new RegExp(`^${n}\\. \\*\\*`, "m").test(hub));
+say(missingRules.length ? "FAIL" : "PASS", missingRules.length ? `CLAUDE.md is missing rule(s) ${missingRules.join(", ")} — rules stay in the hub, never in .claude/rules` : "CLAUDE.md has rules 1–13");
+
+// Personal settings never get committed
+const ignored = Bun.spawnSync(["git", "check-ignore", "-q", ".claude/settings.local.json"], { cwd: ROOT }).exitCode === 0;
+say(ignored ? "PASS" : "FAIL", `.claude/settings.local.json ${ignored ? "is git-ignored" : "is NOT git-ignored — add it to .gitignore"}`);
+
+// Code intelligence and Rust tools behind the LSP plugins and the Stop hook
+for (const [bin, fix] of [["typescript-language-server", "bun add -g typescript-language-server typescript@<project version>"], ["rust-analyzer", "rustup component add rust-analyzer"]])
+  say(onPath(bin) ? "PASS" : "WARN", `LSP ${bin} ${onPath(bin) ? "on PATH" : `not on PATH — the LSP plugin can't start (${fix})`}`);
+if (onPath("cargo")) {
+  for (const sub of ["fmt", "clippy"]) {
+    const ok = Bun.spawnSync(["cargo", sub, "--version"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0;
+    say(ok ? "PASS" : "WARN", `cargo ${sub} ${ok ? "installed" : `missing — rustup component add ${sub === "fmt" ? "rustfmt" : "clippy"}`}`);
+  }
+  if (process.platform === "win32") {
+    const vswhere = join(process.env["ProgramFiles(x86)"] ?? "C:/Program Files (x86)", "Microsoft Visual Studio/Installer/vswhere.exe");
+    const vc = existsSync(vswhere) && Bun.spawnSync([vswhere, "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"]).stdout.toString().trim();
+    say(vc ? "PASS" : "WARN", vc ? "MSVC linker available (Rust builds locally)" : "No MSVC build tools — Rust clippy/tests/tauri dev can't link here; install VS 2022 Build Tools with 'Desktop development with C++'");
+  }
+} else say("WARN", "cargo not on PATH — desktop checks run only in CI");
+
+// Token savers: graphify (knowledge graph + MCP + hooks) and rtk (compressed command output)
+if (!onPath("graphify") || !onPath("graphify-mcp")) say("WARN", "graphify not on PATH — its hooks and MCP server fail. Install: uv tool install \"graphifyy[sql,mcp]\"");
+else {
+  const graph = join(ROOT, "graphify-out/graph.json");
+  if (!existsSync(graph)) say("WARN", "No knowledge graph yet — build it: graphify extract . --code-only (then /graphify . for the spec)");
+  else {
+    const head = Number(Bun.spawnSync(["git", "log", "-1", "--format=%ct"], { cwd: ROOT }).stdout.toString().trim()) * 1000;
+    const stale = head > statSync(graph).mtimeMs;
+    say(stale ? "WARN" : "PASS", stale ? "Knowledge graph is older than the last commit — run: graphify update ." : "Knowledge graph is current");
+  }
+  const hooks = Bun.spawnSync(["graphify", "hook", "status"], { cwd: ROOT }).stdout.toString();
+  say(/installed/i.test(hooks) && !/not installed/i.test(hooks) ? "PASS" : "WARN", /installed/i.test(hooks) && !/not installed/i.test(hooks) ? "graphify git hooks keep the graph current on commit/checkout" : "graphify git hooks not installed — run: graphify hook install (the Stop hook covers Claude's own edits)");
+}
+say(onPath("rtk") ? "PASS" : "WARN", onPath("rtk") ? "rtk on PATH (Bash output compression)" : "rtk not on PATH — a global `rtk hook claude` hook would fail on every Bash call (winget install rtk-ai.rtk, then restart the editor)");
+
+// Prompt routing: ponytail and caveman plugins (user scope) must be installed and not switched off here
+const userPlugins = (() => { try { return JSON.parse(readFileSync(join(homedir(), ".claude/plugins/installed_plugins.json"), "utf8")).plugins ?? {}; } catch { return {}; } })();
+const localPlugins = existsSync(join(ROOT, ".claude/settings.local.json")) ? json(".claude/settings.local.json")?.enabledPlugins ?? {} : {};
+for (const p of ["ponytail@ponytail", "caveman@caveman"]) {
+  const off = localPlugins[p] === false || settings?.enabledPlugins?.[p] === false;
+  say(userPlugins[p] && !off ? "PASS" : "WARN", userPlugins[p] && !off ? `${p} active (the prompt router picks its workflows)` : `${p} ${off ? "is switched off for this project" : "not installed"} — the prompt router's ${p.split("@")[0]} routes do nothing`);
+}
+
+// Parent workspace mirror: hooks and guards must load when the editor opens Manpower-Management-System/
+const { expected, hasParent } = await import("./sync-root-settings");
+if (hasParent()) {
+  const drift = Object.entries(expected()).filter(([f, body]) => !existsSync(f) || readFileSync(f, "utf8") !== body);
+  say(drift.length ? "FAIL" : "PASS", drift.length ? "Parent workspace settings are missing or out of date — opening the parent folder would skip the hooks and guards. Run: bun run agent:sync-root" : "Parent workspace folder mirrors the hooks, guards and token savers");
+}
+
 // Upstream isolation
 for (const bad of ["CLAUDE.md", ".claude"]) {
   const hits = existsSync(join(ROOT, "third_party")) ? readdirSync(join(ROOT, "third_party")).filter((d) => existsSync(join(ROOT, "third_party", d, bad))) : [];

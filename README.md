@@ -76,7 +76,7 @@ To deploy from this machine instead: `bunx wrangler login`, then `bun run deploy
 Every step follows the JavaScript Mastery skills loop, adapted to this system:
 `/remember restore` → `/architect` → build (tests first) → `/review` → `/imprint` (UI) → `/remember save`, with `/recover` when something breaks.
 The skills live in `.claude/skills/`; the build state lives in `docs/PROGRESS.md` (read first, update last), `docs/DECISIONS.md`, `docs/DEFERRED.md` and `docs/ui-registry.md`; the database rulebook is `docs/SCHEMA_GOVERNANCE.md`; the full specification is mirrored in `docs/spec/`.
-`bun run gates` enforces the rules a script can check (migrations lock, money types, dates, sequences, lockfile, golden sign-off, personal data, colours) and runs first in CI and after every agent edit.
+`bun run gates` enforces the rules a script can check (migrations lock, money types, dates, sequences, lockfile, golden sign-off, personal data, colours, a print spooler that never panics, desktop commands wired by name) and runs first in CI and after every agent edit; before an agent finishes a turn, a Stop hook also typechecks and lints what it touched.
 Working principles come from the Karpathy guidelines (`/karpathy-guidelines`). MCP servers (`.mcp.json`), hooks and permissions (`.claude/settings.json`) and subagents (`.claude/agents/`) are part of the setup; run `bun run agent:doctor` after cloning. **`CLAUDE.md` is the map of every file and rule.** Upstream originals (JSM and Karpathy, with licences) are in `third_party/`.
 
 ## Layout
@@ -106,11 +106,12 @@ bun run dev:web                 # http://localhost:5173
 
 Production API image (Bun): `docker build -f apps/api/Dockerfile -t workforce-api .`
 
-Desktop app (needs Rust; on Windows also the WebView2 runtime, which ships with Windows 10/11):
+Desktop app (needs Rust with `rustfmt` and `clippy`; on Windows also the Visual Studio 2022 Build Tools with "Desktop development with C++" for the linker, and the WebView2 runtime, which ships with Windows 10/11):
 
 ```bash
-bun run --filter @mms/desktop dev     # opens the desktop window on the dev web app
-bun run --filter @mms/desktop build   # builds the MSI and EXE installers
+bun run --filter @mms/desktop dev        # opens the desktop window on the dev web app
+bun run --filter @mms/desktop build      # builds the MSI and EXE installers
+bun run --filter @mms/desktop lint:rust  # rustfmt check + clippy (warnings are errors), both crates
 ```
 
 Every push to GitHub also builds the Windows installer in CI (Actions → latest run →

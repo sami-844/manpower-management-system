@@ -1,6 +1,6 @@
 ---
 name: independent-reviewer
-description: Fresh-context reviewer for high-stakes changes in the manpower system — payroll, WPS files, end of service, compliance and eligibility, permissions and row-level security, four-eyes approvals, migrations, audit, personal data. Use from /review Layer 3, and before any such change is committed. It has not seen the build conversation, so it judges the diff against the spec and rules, not against the builder's intentions. Reports only; never edits.
+description: Fresh-context reviewer for high-stakes changes in the manpower system — payroll, WPS files, end of service, compliance and eligibility, permissions and row-level security, four-eyes approvals, migrations, audit, personal data, and the desktop shell's attack surface (IPC commands, capabilities, CSP, the print spooler). Use from /review Layer 3, and before any such change is committed. It has not seen the build conversation, so it judges the diff against the spec and rules, not against the builder's intentions. Reports only; never edits.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit
 model: opus
@@ -24,6 +24,7 @@ You review a change you did not write. Assume nothing the builder said; read the
    - **Concurrency and idempotence**: codes from sequences; release and file generation idempotent (Idempotency-Key); a PostgreSQL concurrency test where two people can act at once.
    - **Personal data**: masked to last 4 in UI and logs; no real data in tests, fixtures, seeds or screenshots.
    - **Migrations**: new numbered file, lock updated, expand-compatible with the previous release.
+   - **Desktop shell** (`apps/desktop`): every `#[tauri::command]` treats the webview as untrusted input — item counts, byte sizes and string lengths bounded before work starts; no panics in library code (gate G9); commands registered and called by the right names (G10); capabilities grant no more than the change needs; the CSP names exact origins, never `*`; no business rule in the shell (rule 12). Run `bun run --filter @mms/desktop lint:rust` and `test:rust` when Rust changed.
    - **Tests**: the failing-first test exists for each requirement; no test deleted, skipped or weakened.
    - **Karpathy check**: every changed line traces to the step; nothing speculative; no unrelated refactors.
 5. Report:

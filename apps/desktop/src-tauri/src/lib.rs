@@ -2,7 +2,9 @@
 //! silent printing (Spec §7). No business rules live here; the server owns them.
 
 use base64::Engine;
-use print_spooler::{print_batch, system, BatchReport, PrintDocument, PrinterProfile, Progress, TEST_PAGE_PDF};
+use print_spooler::{
+    print_batch, system, BatchReport, PrintDocument, PrinterProfile, Progress, TEST_PAGE_PDF,
+};
 use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -37,7 +39,10 @@ async fn print_documents(
         .map(|d| {
             base64::engine::general_purpose::STANDARD
                 .decode(d.pdf_base64)
-                .map(|bytes| PrintDocument { name: d.name.clone(), bytes })
+                .map(|bytes| PrintDocument {
+                    name: d.name.clone(),
+                    bytes,
+                })
                 .map_err(|_| format!("\"{}\" couldn't be read", d.name))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -50,7 +55,10 @@ async fn print_test_page(
     state: State<'_, PrintState>,
     profile: PrinterProfile,
 ) -> Result<BatchReport, String> {
-    let doc = PrintDocument { name: "Workforce printer test".into(), bytes: TEST_PAGE_PDF.to_vec() };
+    let doc = PrintDocument {
+        name: "Workforce printer test".into(),
+        bytes: TEST_PAGE_PDF.to_vec(),
+    };
     run_batch(app, &state, profile, vec![doc]).await
 }
 
@@ -88,7 +96,12 @@ async fn run_batch(
 pub fn run() {
     tauri::Builder::default()
         .manage(PrintState::default())
-        .invoke_handler(tauri::generate_handler![list_printers, print_documents, print_test_page, cancel_printing])
+        .invoke_handler(tauri::generate_handler![
+            list_printers,
+            print_documents,
+            print_test_page,
+            cancel_printing
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Workforce");
 }

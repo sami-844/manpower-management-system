@@ -6,6 +6,8 @@ reports/
 *.log
 .env
 .env.local
+.claude/settings.local.json
+graphify-out/
 **/target/
 apps/desktop/src-tauri/gen/
 test-results/

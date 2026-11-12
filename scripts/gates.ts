@@ -169,6 +169,41 @@ function gateColours() {
 }
 
 // ---------------------------------------------------------------------------
+// G9 Print spooler never panics — a panic halfway through 700 payslips loses the
+// batch report. Return a Result instead. Test code (tests.rs, after #[cfg(test)]) is exempt.
+// ---------------------------------------------------------------------------
+const SPOOLER = join(ROOT, "apps/desktop/print-spooler/src");
+const DESKTOP = join(ROOT, "apps/desktop/src-tauri/src");
+const stripRustComments = (s: string) => s.split(/#\[cfg\(test\)\]/)[0].replace(/\/\/.*$/gm, "");
+function gateSpoolerPanics() {
+  const files = walk(SPOOLER, (p) => p.endsWith(".rs") && !p.endsWith("/tests.rs"));
+  scanLines(files, "G9 spooler never panics", /\.unwrap\(\)|\.expect\(|\b(panic|unreachable|todo|unimplemented)!\(/,
+    "can panic mid-batch — return a Result (BatchError) so the report survives", stripRustComments);
+}
+
+// ---------------------------------------------------------------------------
+// G10 Desktop commands — every #[tauri::command] is registered in generate_handler!,
+// every registered name is a command, and every invoke("…") in the web app names one.
+// An unregistered or misspelt command only fails at runtime, on the office PC.
+// ---------------------------------------------------------------------------
+function gateDesktopCommands() {
+  const gate = "G10 desktop commands wired";
+  const rust = walk(DESKTOP, (p) => p.endsWith(".rs")).map((f) => [f, stripRustComments(readFileSync(f, "utf8"))] as const);
+  const defined = new Set(rust.flatMap(([, s]) => [...s.matchAll(/#\[tauri::command\][\s\S]*?\bfn\s+(\w+)/g)].map((m) => m[1])));
+  const handler = rust.map(([f, s]) => [f, s.match(/generate_handler!\[([^\]]*)\]/)?.[1]] as const).find(([, h]) => h !== undefined);
+  if (!handler) { if (defined.size) fail({ gate, detail: "commands are defined but no generate_handler![…] registers them" }); return; }
+  const registered = new Set(handler[1]!.split(",").map((n) => n.trim().split("::").pop()!).filter(Boolean));
+  for (const n of defined) if (!registered.has(n)) fail({ gate, file: rel(handler[0]), detail: `#[tauri::command] ${n} is not in generate_handler![…]` });
+  for (const n of registered) if (!defined.has(n)) fail({ gate, file: rel(handler[0]), detail: `generate_handler! lists ${n}, which is not a #[tauri::command]` });
+  for (const f of walk(join(ROOT, "apps/web/src"), (p) => /\.tsx?$/.test(p) && !/\.test\.tsx?$/.test(p))) {
+    readFileSync(f, "utf8").split("\n").forEach((line, i) => {
+      for (const m of line.matchAll(/\binvoke(?:<[^>]*>)?\(\s*["'](\w+)["']/g))
+        if (!registered.has(m[1])) fail({ gate, file: rel(f), line: i + 1, detail: `invoke("${m[1]}") has no registered desktop command` });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 const args = new Set(process.argv.slice(2));
 const gates: [string, () => void][] = [
   ["G1 migrations locked", () => gateMigrations(args.has("--update-lock"))],
@@ -177,6 +212,8 @@ const gates: [string, () => void][] = [
   ["G6 golden cases signed", gateGolden],
   ["G7 no real personal data", gatePersonalData],
   ["G8 colours from tokens", gateColours],
+  ["G9 spooler never panics", gateSpoolerPanics],
+  ["G10 desktop commands wired", gateDesktopCommands],
 ];
 
 for (const [name, run] of gates) {

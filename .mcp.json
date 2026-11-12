@@ -12,6 +12,14 @@
       "command": "bunx",
       "args": ["@playwright/mcp@latest"]
     },
+    "graphify": {
+      "command": "graphify-mcp",
+      "args": ["graphify-out/graph.json"]
+    },
+    "playwright-desktop": {
+      "command": "bunx",
+      "args": ["@playwright/mcp@latest", "--cdp-endpoint", "http://127.0.0.1:9222"]
+    },
     "postgres": {
       "command": "uvx",
       "args": ["postgres-mcp", "--access-mode=restricted"],

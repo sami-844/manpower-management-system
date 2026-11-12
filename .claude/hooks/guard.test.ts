@@ -9,7 +9,8 @@ const files: Record<string, string> = {
     cases: [{ id: "eos-1", input: { years: 3 }, expected: "450.000", signedBy: "Payroll officer", signedOn: "2027-01-10" }],
   }),
 };
-const read = (p: string) => files[p] ?? null;
+// path.join gives backslashes on Windows; the fake file map is keyed with forward slashes.
+const read = (p: string) => files[p.replaceAll("\\", "/")] ?? null;
 const write = (file_path: string, content: string): ToolCall => ({ tool_name: "Write", tool_input: { file_path, content } });
 const edit = (file_path: string, old_string: string, new_string: string): ToolCall => ({ tool_name: "Edit", tool_input: { file_path, old_string, new_string } });
 

@@ -51,7 +51,9 @@ pub enum BatchError {
 impl std::fmt::Display for BatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BatchError::PrinterNotFound(p) => write!(f, "Printer \"{p}\" isn't connected to this PC"),
+            BatchError::PrinterNotFound(p) => {
+                write!(f, "Printer \"{p}\" isn't connected to this PC")
+            }
             BatchError::EmptyBatch => write!(f, "There is nothing to print"),
             BatchError::NotPdf(n) => write!(f, "\"{n}\" isn't a PDF, so nothing was printed"),
         }
@@ -81,7 +83,11 @@ pub fn print_batch(
     if docs.is_empty() {
         return Err(BatchError::EmptyBatch);
     }
-    if !backend.printer_names().iter().any(|n| n == &profile.printer) {
+    if !backend
+        .printer_names()
+        .iter()
+        .any(|n| n == &profile.printer)
+    {
         return Err(BatchError::PrinterNotFound(profile.printer.clone()));
     }
     if let Some(bad) = docs.iter().find(|d| !d.bytes.starts_with(b"%PDF-")) {
@@ -99,7 +105,11 @@ pub fn print_batch(
             Ok(job) => report.submitted.push((doc.name.clone(), job)),
             Err(reason) => report.failed.push((doc.name.clone(), reason)),
         }
-        on_progress(Progress { done: i + 1, total: docs.len(), current: doc.name.clone() });
+        on_progress(Progress {
+            done: i + 1,
+            total: docs.len(),
+            current: doc.name.clone(),
+        });
     }
     Ok(report)
 }

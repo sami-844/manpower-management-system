@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:3000 https://*.amazonaws.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:3000 http://localhost:3100 https://*.amazonaws.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'"
     }
   },
   "bundle": {

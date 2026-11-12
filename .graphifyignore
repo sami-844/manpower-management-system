@@ -1,0 +1,14 @@
+# What graphify leaves out of the knowledge graph (it also honours .gitignore).
+# Upstream sources are reference copies, never product code (CLAUDE.md: third_party/ is never edited).
+third_party/
+# Agent configuration is instructions, not the system; the skills and rules are read directly.
+.claude/
+# Generated or binary: drizzle-kit snapshots, lockfile, icons, the print test page.
+apps/api/drizzle/meta/
+bun.lock
+apps/desktop/src-tauri/icons/
+apps/desktop/src-tauri/gen/
+apps/desktop/print-spooler/assets/
+apps/desktop/**/Cargo.lock
+# Its own output.
+graphify-out/

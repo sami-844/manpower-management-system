@@ -96,12 +96,16 @@ jobs:
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: |
             apps/desktop/print-spooler
             apps/desktop/src-tauri
       - run: bun install --frozen-lockfile
+      - name: Rust format and lints (both crates, warnings are errors)
+        run: bun run --filter @mms/desktop lint:rust
       - name: Test the silent-print module on Windows
         run: bun run --filter @mms/desktop test:rust
       - name: Build the installer

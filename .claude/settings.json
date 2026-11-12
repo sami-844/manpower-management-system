@@ -18,13 +18,23 @@
       "Bash(git push *)",
       "Bash(bun run gates --update-lock)",
       "Bash(bun run db:migrate *)",
-      "Bash(bun add *)"
+      "Bash(bun add *)",
+      "Edit(apps/desktop/src-tauri/capabilities/**)",
+      "Edit(apps/desktop/src-tauri/tauri.conf.json)"
     ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./**/.env)",
       "Read(./**/.env.*)",
+      "Read(./bun.lock)",
+      "Read(./**/target/**)",
+      "Read(./**/dist/**)",
+      "Read(./apps/api/drizzle/meta/**)",
+      "Read(./apps/desktop/src-tauri/gen/**)",
+      "Read(./graphify-out/*.json)",
+      "Read(./graphify-out/*.html)",
+      "Read(./graphify-out/cache/**)",
       "Bash(npm *)",
       "Bash(npx *)",
       "Bash(pnpm *)",
@@ -35,12 +45,52 @@
       "Bash(rm -rf *)"
     ]
   },
-  "enabledMcpjsonServers": ["context7", "shadcn", "playwright", "aws-docs", "terraform"],
+  "enabledMcpjsonServers": [
+    "context7",
+    "shadcn",
+    "playwright",
+    "playwright-desktop",
+    "graphify",
+    "aws-docs",
+    "terraform"
+  ],
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "3"
+  },
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.ts\"" }
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.ts\""
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "graphify hook-guard compact",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/prompt-router.ts\"",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -48,7 +98,39 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.ts\"" }
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.ts\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.ts\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "graphify hook-guard search --strict",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "graphify hook-guard read --strict",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -56,7 +138,21 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-gates.ts\"" }
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-gates.ts\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-checks.ts\"",
+            "timeout": 900
+          }
         ]
       }
     ]

@@ -81,53 +81,27 @@ These are the five skills from the JavaScript Mastery AI engineering video ([jsm
 | Pull requests, issues, CI logs, branch protection (once D10 is answered) | **github** MCP | Copy-pasting logs |
 | AWS service facts: Cognito, RDS, S3, KMS, SES, regions (D6) | **aws-docs** MCP | Memory |
 | Terraform for the S1 landing zone | **terraform** MCP (AWS provider docs, Checkov) | Unchecked resource arguments |
-| Independent check of a payroll, WPS, compliance, security or migration change | `independent-reviewer` agent | The builder reviewing its own work |
+| See or debug the real desktop window (WebView2, IPC) | **playwright-desktop** MCP against the shell started with remote debugging (`.claude/rules/desktop.md`) | Guessing from the Rust or the browser build |
+| Independent check of a payroll, WPS, compliance, security, migration or desktop IPC change | `independent-reviewer` agent | The builder reviewing its own work |
+| Turn a TR-ID into its failing test | `/tr-test TR-XXX-NN` | Writing the code first |
+| A new migration | `/new-migration` | Hand-creating a `.sql` file |
+| A new or changed desktop IPC command | `/tauri-command` | Editing `lib.rs` alone |
+| Mutation score near the 80 % gate | `mutant-hunter` agent | Lowering the threshold or weakening a test |
+| How code connects: callers, dependents, paths between modules, hubs | **graphify** (MCP `query_graph`/`shortest_path`/`get_neighbors`, or `graphify query/path/explain`) — see the `## graphify` section below. Its spec layer is coarse; for TR-IDs, screens and tables use `spec-scout` | Grepping and reading whole files |
+| Where is this defined, who calls it | LSP (go-to-definition, find-references; TypeScript and Rust) | Grepping and reading whole files |
 | Broad codebase search when only the answer is needed | A subagent (the built-in Explore agent) | Many Grep/Read calls in the main context |
 | Big or ambiguous change | Plan mode, then `/architect` | Starting to type code |
 
-### MCP servers (`.mcp.json`, project scope)
+### Servers, agents, hooks and permissions
 
-Claude Code asks you to approve project servers once. The low-risk documentation and UI servers are pre-approved in `.claude/settings.json` (`enabledMcpjsonServers`). **github** and **postgres** need your explicit approval. Run `/mcp` to see their status. MCP tools are loaded on demand (tool search), so having all seven costs little context.
-
-| Server | Runs as | Needs | Safety |
-|---|---|---|---|
-| context7 | `bunx @upstash/context7-mcp` | — | Read-only public docs |
-| shadcn | `bunx --bun shadcn@latest mcp` | `components.json` (from S2) | Writes only when you ask it to install a component |
-| playwright | `bunx @playwright/mcp@latest` | Web app running locally | Local browser; never log in to real systems with it |
-| postgres | `uvx postgres-mcp --access-mode=restricted` | uv; `MCP_DATABASE_URL` (default: local `mms_dev`) | **Read-only transactions**. Local seeded database with fictional workers only. `bun run agent:doctor` fails if the URL looks like production. Schema changes go through migrations, data changes through the API. |
-| github | HTTP `api.githubcopilot.com/mcp/` | `GITHUB_PAT` in your shell (never in a file); repository (D10) | Use a fine-grained token scoped to this repository |
-| aws-docs | `uvx awslabs.aws-documentation-mcp-server@latest` | uv | Read-only public docs |
-| terraform | `uvx awslabs.terraform-mcp-server@latest` | uv | Docs and scans; it never applies changes. `terraform apply` is a human step. |
-
-Never put a token, password or connection string with real credentials into `.mcp.json`. It is committed. Use `${VAR}` and set the value in your shell.
-
-### Subagents (`.claude/agents/`)
-
-| Agent | Model | Tools | Use for |
-|---|---|---|---|
-| `spec-scout` | haiku | Read, Grep, Glob | Cited spec lookup for a step (used by `/architect`) |
-| `independent-reviewer` | opus | Read, Grep, Glob, Bash; no Write or Edit | Fresh-context review of high-stakes diffs (used by `/review`) |
-
-Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spec-scout`. Subagents keep long searches and reviews out of the main context, and a reviewer that never saw the build can't mark its own homework.
-
-### Hooks (`.claude/settings.json`): enforced, not advisory
-
-| Event | Script | Effect |
-|---|---|---|
-| SessionStart | `.claude/hooks/session-start.ts` | Puts the PROGRESS header, blocked items and open decisions into context |
-| PreToolUse (Edit, Write, MultiEdit) | `.claude/hooks/guard.ts` | **Blocks** writes to `.env*`, hand edits to `migrations.lock`, edits to applied migrations, and any change to a signed golden value, a sign-off, a deleted golden case, or a new case without `"expected": null`. Tested in `guard.test.ts`. |
-| PostToolUse (Edit, Write, MultiEdit) | `.claude/hooks/post-edit-gates.ts` | Runs `bun run gates` (about 50 ms) after every edit and sends failures straight back to Claude |
-
-### Permissions (`.claude/settings.json`)
-- **Allowed without asking:** gates, typecheck, tests, the doctor, and read-only git.
-- **Asks first:** `git push`, `gates --update-lock`, `db:migrate`, `bun add`.
-- **Denied:** reading `.env` files; npm, npx, pnpm and yarn; force-push; `git reset --hard`; `rm -rf`.
-- Personal exceptions go in `.claude/settings.local.json` (git-ignored), never in the shared file.
+The details — every MCP server and its safety limits, the subagents, each hook and what it blocks, the permission lists — are in **`.claude/rules/agent-setup.md`**, which loads when the agent setup is read or changed. In short: hooks **block** the Never items they can see (secrets, applied migrations, golden values, git rewrites while dev servers run), run the gates after every edit, and run typecheck, hook tests and Rust checks before a turn ends. Personal exceptions go in `.claude/settings.local.json` (git-ignored), never in the shared file.
 
 ### Context hygiene
 - One step per session and `/clear` between steps; the state lives in `docs/`, not in the chat.
 - Delegate searches and reviews to subagents.
 - Load spec sections, not whole documents.
+- Navigate code with the LSP (definitions, references) rather than reading whole files.
+- Area-specific parts of this hub live in `.claude/rules/` and load only when matching files are read or edited.
 - Skills stay under 500 lines; the doctor checks this.
 - Run `bun run agent:doctor` after cloning, after changing `.claude/` or `.mcp.json`, and whenever a skill or MCP server misbehaves.
 
@@ -157,33 +131,14 @@ Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spe
 | `08-Implementation-Plan.md` | Sprints S1–S33: goals, demos, testing, cut-over | Architect | **Every step** |
 | `09-Design-Brief.md` | Look and behaviour: shadcn/ui and the approved Aceternity list | Architect | Any UI step; `/imprint` |
 | `diagrams/` | Ten diagrams referenced by the spec | Architect | As referenced |
-| **Agent configuration (`.claude/`, `.mcp.json`)** | | | |
-| `.claude/skills/{architect,review,imprint,recover,remember}/SKILL.md` | The adapted JSM loop | Humans, by reviewed PR | Loaded by `/name` or automatically |
-| `.claude/skills/karpathy-guidelines/SKILL.md` | Verbatim Karpathy guidelines | Upstream only | Loaded automatically when coding |
-| `.claude/agents/*.md` | `spec-scout`, `independent-reviewer` | Humans | Called by the skills |
-| `.claude/hooks/*.ts` | SessionStart summary, PreToolUse guard (and its tests), PostToolUse gates | Humans, with tests | When a hook blocks you: read its message |
-| `.claude/settings.json` | Shared permissions, hooks, approved MCP servers | Humans, by reviewed PR | When a command is denied or prompts |
-| `.mcp.json` | The seven project MCP servers | Humans, by reviewed PR | `/mcp` |
-| **Checks (`scripts/`, CI)** | | | |
-| `scripts/gates.ts` | `bun run gates`: G1 migrations lock, G2 money types, G3 time zones, G4 sequences, G5 bun.lock only, G6 golden sign-off, G7 no Oman IBANs, G8 colours from tokens | Humans | When a gate fails: the message says what to do |
-| `scripts/agent-doctor.ts` | `bun run agent:doctor`: skills, agents, hooks, MCP prerequisites, shadowed personal skills, upstream isolation, PROGRESS freshness | Humans | After cloning or changing agent config |
-| `apps/api/drizzle/migrations.lock` | SHA-256 of every applied migration | `bun run gates --update-lock` only | Never by hand |
-| `.github/workflows/ci.yml` | gates → typecheck → test → mutation → builds → e2e → API image → Windows installer | Humans | When CI fails |
-| **Product code** | | | |
-| `packages/core/src` | Pure domain engines with no I/O: `compliance.ts` (`checkEligibility`), `renewals.ts`, `money.ts` (decimal.js, OMR), `dates.ts`, `summary.ts`, `masters.ts` (the eighteen document masters, PRD 4.19); tests beside each | Build steps, tests first | Before writing any rule: it may already exist |
-| `apps/api/src` | NestJS on Bun: `workers`, `compliance`, `sites`, `audit`, `common`, `db` (`schema.ts`, `client.ts` with the per-request row-level-security scope, `migrate.ts`, `seed.ts` with fictional data only) | Build steps | Any API step |
-| `apps/api/src/auth` | Own identity service (DECISIONS A25; two-factor optional, A31): `crypto.ts` (HS256 tokens, refresh tokens, AES-GCM sealing, RFC 6238 TOTP), `passwords.ts` (Argon2id, policy), `auth.service.ts` (sign-in with reserve-then-verify lockout, refresh rotation and reuse detection, idle and absolute limits), `auth.guard.ts` (default deny, permissions, `RequestScopeInterceptor`), `permissions.ts` (catalogue; must match the migrations), `admin-users.ts`, `accounts.ts` (`auth:bootstrap-admin`, `db:seed-users`) | Build steps; security changes need the `independent-reviewer` agent | Any endpoint: declare `@Public`, `@SignedIn` or `@RequirePermission` |
-| `apps/api/src/files/files.ts` | Scans (A27, TR-SEC-12): type from the file's bytes, 15 MB, virus scan (EICAR test signature in development, `pending` in production until X15), disk store in development and S3 in production, opened only when clean | Build steps; security changes need the `independent-reviewer` agent | Any upload or download |
-| `apps/api/src/masters/masters.ts` | Document masters (PRD 4.19, A26-A30): the client register, organisation documents (company, sub-contractors, clients), scan upload and opening (audited; worker scans need `pii.view`), `/masters` and `/masters/{key}` | Build steps | Any masters, client or document step |
-| `apps/api/src/sponsors/sponsors.ts` | Sponsors and outsourced workers (PRD 4.18, A21–A24): sponsor register, dated engagements, verified authorisations, supply agreements (four eyes), the `outsourcing.unauthorised` setting | Build steps | Any outsourcing or sponsor step |
-| `apps/api/drizzle/NNNN_*.sql` | Numbered, forward-only migrations | New file per change; never edited once locked | Any data step |
-| `apps/api/test` | API tests on PostgreSQL 16 (`helpers.ts`, `preload.ts`, `global-setup.ts`) | Build steps | Any API step |
-| `apps/web/src` | Shared React interface: `pages/`, `components/`, `lib/` (`api.ts`, `format.ts`, `desktop.ts`); `styles.css` is pre-shadcn until S2 | Build steps | Any UI step |
-| `apps/web/e2e` | Playwright journeys | Build steps | UI flows |
-| `apps/desktop/src-tauri`, `apps/desktop/print-spooler` | Tauri 2 shell; Rust silent batch printing (`cargo test`) | Build steps | Printing and desktop work |
-| `packages/ui` (from S2) | shadcn components and Design Brief tokens (`styles/tokens.css`) | S2 onwards | Any UI step |
+| **Agent configuration and checks** | Skills, agents, hooks, settings, `.mcp.json`, `scripts/agent-doctor.ts`, CI — full map in `.claude/rules/agent-setup.md` | Humans, by reviewed PR | When changing the agent setup or CI |
+| `scripts/gates.ts` | `bun run gates`: G1 migrations lock, G2 money types, G3 time zones, G4 sequences, G5 bun.lock only, G6 golden sign-off, G7 no Oman IBANs, G8 colours from tokens, G9 print spooler never panics, G10 desktop commands registered and called by the right names | Humans | When a gate fails: the message says what to do |
+| **Product code** — each area's file map and stack notes load with its files | | | |
+| `packages/core` | Pure domain engines (`checkEligibility`, money, dates, renewals, masters) → `.claude/rules/core.md` | Build steps, tests first | Before writing any rule: it may already exist |
+| `apps/api` | NestJS on Bun, auth, files, masters, sponsors, migrations, API tests → `.claude/rules/api.md` | Build steps | Any API or data step |
+| `apps/web`, `packages/ui`, demo | React interface, e2e, shadcn tokens, hosted demo → `.claude/rules/web.md` | Build steps | Any UI step |
+| `apps/desktop` | Tauri 2 shell and Rust print spooler → `.claude/rules/desktop.md` | Build steps | Printing and desktop work |
 | `docker-compose.yml` | Local PostgreSQL 16 (`mms_dev`, plus test database) | Humans | Local setup |
-| `wrangler.jsonc`, `apps/web/src/demo/server.ts` | Hosted client demo on Cloudflare Workers (DECISIONS A20): static `--mode demo` build whose API calls are answered in the browser by `server.ts` from `@mms/core` and fictional data. Demo hosting only; production is AWS (A10). When an `apps/api` endpoint the web calls changes, change `server.ts` with it (`server.test.ts`) | Humans (config); build steps (`server.ts`) | Deploying the demo; any change to an endpoint the web calls |
 | **Upstream (`third_party/`)** | Verbatim JSM (video set and v2) and Karpathy sources, with commits and licences in `third_party/README.md` | Upstream only; never edited | To compare against or take an update |
 
 ---
@@ -216,6 +171,8 @@ Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spe
 | Set, change or delete a golden expected value or sign-off | `"expected": null`, flag for sign-off | guard hook, G6, `/review` |
 | Real IBANs, IDs, names, phones or salaries anywhere | Seed generator | G7, `/review`, `/remember` |
 | Hard-coded colours in UI code | Design Brief tokens | G8, `/imprint` |
+| `unwrap()`/`expect()`/`panic!` in the print spooler; an IPC command that isn't registered; business rules in the desktop shell | `Result`; `/tauri-command`; logic in `packages/core` or the API | G9, G10, `/review` |
+| `git checkout`/`switch`/`stash`/`pull` while the dev servers run | `git branch -f`, `git merge --ff-only` on the current branch | bash-guard hook |
 | Read or write `.env` files | `.env.example` with placeholders; secrets in your shell | permissions, guard hook |
 | Point the postgres MCP at production, or let it write | Local `mms_dev`, restricted mode | `.mcp.json`, agent:doctor |
 | Commit a token into `.mcp.json` or settings | `${VAR}` expansion | `/review` |
@@ -241,10 +198,8 @@ Run one by asking for it ("Use the spec-scout agent for S5") or with `@agent-spe
 ## 8. Stack notes (learned the hard way)
 
 - **Bun** is the runtime, package manager and test runner: `bun install`, `bun run`, `bunx`. The API runs on Bun everywhere (`bun src/main.ts`, `bun test`, `bun build --target=bun`).
-- **postgres.js queries are lazy.** In `bun:test`, never pass a query straight to `expect(...).rejects`. Wrap it: ``expect((async () => sql`...`)()).rejects``. Passed directly, the test hangs forever and Bun's timeout doesn't stop it.
-- **`apps/api/tsconfig.json` stays self-contained** (no `extends`). Bun ignores `experimentalDecorators` in an extended tsconfig, and NestJS then fails at startup.
+- **Area notes** (postgres.js laziness, the self-contained API tsconfig, Vitest for web and mutation tests, Rust and Tauri) are in `.claude/rules/{api,web,core,desktop}.md` and load with those files.
 - **Pin exact versions** for anything tied to a downloaded binary (`@playwright/test`).
-- **Web component tests and mutation testing use Vitest on purpose** (jsdom and Stryker). Don't move them to `bun test` without proving both still work.
 - **TypeScript strict.** No `any` without a comment saying why.
 - **Dates:** calendar dates are `YYYY-MM-DD` strings in Oman time (`DATE` in SQL); moments are `timestamptz`.
 - **Modules** follow the PRD: workers, compliance, clients, roster, timesheets, payroll, billing, ledger.
@@ -259,6 +214,19 @@ bun run gates               # repository rules (also runs after every agent edit
 bun run typecheck && bun run test
 bun run test:tooling        # hook tests
 bun run test:mutation       # core mutation score (CI gate 80 %)
+bun run --filter @mms/desktop lint:rust   # Rust fmt + clippy -D warnings, both crates
+bun run --filter @mms/desktop test:rust   # print spooler tests
 bun run agent:doctor        # agent setup health
 bun run dev:api / dev:web
 ```
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
