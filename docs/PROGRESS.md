@@ -8,7 +8,7 @@
 **Current phase:** 0 — Discovery, data audit and platform proofs (1 Nov – 10 Dec 2026, ends at G0), overlapping Phase 1 — Foundation from 15 Nov.
 **Current sprint:** S1 (Sun 1 – Thu 12 Nov 2026) — Proofs: silent printing on the office printers, Bank Muscat WPS sample file, AWS landing zone.
 **Current step:** S1 · platform proofs — **not started in code**; all three depend on inputs from the company (see Blocked).
-**Last session:** 2026-11-12 (12) — Tooling typecheck and the last token-saver steps, no product change: `graphify hook install` (post-commit/checkout/merge/rewrite), cargo and typecheck allow rules, `@types/bun` and `typescript` at the root with a `tsconfig.json` covering `.claude/hooks` and `scripts` (21 strict-mode type errors fixed, no behaviour change), `bun run typecheck` now includes it. Branch `chore/agent-automation`. Before that, (11) the same day — Automatic token savers, no product change: a UserPromptSubmit prompt router (ponytail/caveman workflow by intent, 600-token graph slice for code prompts), graphify hooks in strict mode, ponytail back on in this project, and the setup mirrored into the parent workspace folder (`bun run agent:sync-root`). Branch `chore/agent-automation`, not committed. Before that, (10) the same day — Token savers, no product change: graphify knowledge graph (code + migrations, coarse spec layer; MCP server, advisory hooks, Stop-hook refresh), rtk (already installed globally; works once the editor restarts), caveman (user plugin), Read deny list for generated files. Branch `chore/agent-automation`, not committed. Before that, (9) on 2026-11-11 — Agent tooling, no product change: Bash guard and Stop-hook checks, gates G9/G10, Rust fmt/clippy in CI, three skills, `mutant-hunter`, LSP, path-scoped `CLAUDE.md`. Branch `chore/agent-automation`, not committed. Previous: (8) two-factor optional (A31), branch `feat/optional-2fa`.
+**Last session:** 2026-11-12 (12) — Tooling typecheck and the last token-saver steps, no product change: `graphify hook install` (post-commit/checkout/merge/rewrite), cargo and typecheck allow rules, `@types/bun` and `typescript` at the root with a `tsconfig.json` covering `.claude/hooks` and `scripts` (21 strict-mode type errors fixed, no behaviour change), `bun run typecheck` now includes it. Branch `chore/agent-automation`. Before that, (11) the same day — Automatic token savers, no product change: a UserPromptSubmit prompt router (ponytail/caveman workflow by intent, 600-token graph slice for code prompts), graphify hooks in strict mode, ponytail back on in this project, and the setup mirrored into the parent workspace folder (`bun run agent:sync-root`). Branch `chore/agent-automation`, committed in `ab1ae7c`. Before that, (10) the same day — Token savers, no product change: graphify knowledge graph (code + migrations, coarse spec layer; MCP server, advisory hooks, Stop-hook refresh), rtk (already installed globally; works once the editor restarts), caveman (user plugin), Read deny list for generated files. Branch `chore/agent-automation`, committed in `ab1ae7c`. Before that, (9) on 2026-11-11 — Agent tooling, no product change: Bash guard and Stop-hook checks, gates G9/G10, Rust fmt/clippy in CI, three skills, `mutant-hunter`, LSP, path-scoped `CLAUDE.md`. Branch `chore/agent-automation`, committed in `ab1ae7c`. Previous: (8) two-factor optional (A31), branch `feat/optional-2fa`.
 **Gates (2026-11-11, `chore/agent-automation`):** core 125 passed · web 97 passed (with `--testTimeout=30000`/`60000`: at the 5 s default, 12 tests time out on this PC under 97 % CPU load; every one passes when given time) · API **not run** (Docker not running) · mutation 89.08 % · Rust fmt + clippy `-D warnings` clean, spooler 10 passed · tooling tests 76 passed · typecheck clean · `bun run gates` green (G1–G10) · `agent:doctor` 0 fail
 
 ## How a step runs
@@ -83,13 +83,13 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 
 ## Session log (newest first)
 
-**2026-11-12 (12) — Tooling typecheck, graphify git hooks, allow rules. Branch `chore/agent-automation`.**
+**2026-11-12 (12) — Tooling typecheck, graphify git hooks, allow rules. Branch `chore/agent-automation`, committed in `bd493d2`.**
 
 - **Asked by Sami:** run `graphify hook install`, add the cargo and typecheck allow rules, add `@types/bun`, without compromise.
 - **Done:** all three; `typescript@^5.6.0` added at the root too (same 5.9.3 the workspaces resolve), since the root had no `tsc`. The new typecheck found 21 real gaps in the tooling code; fixed, not suppressed. `.gitattributes` gained graphify's merge-driver line (inert while `graphify-out/` is git-ignored).
 - **Checks:** `bun run typecheck` clean (core, api, web, tooling) · tooling tests 76 passed · gates green · `agent:doctor` 0 fail, graphify git hooks PASS.
 
-**2026-11-12 (11) — Token savers run on their own. Branch `chore/agent-automation`, not committed.**
+**2026-11-12 (11) — Token savers run on their own. Branch `chore/agent-automation`, committed in `ab1ae7c`.**
 
 - **Asked by Sami:** graphify and the token savers on every prompt without being asked; ponytail and caveman installed and chosen by request type; anything else that cuts tokens without hurting accuracy; no compromise on code quality.
 - **Decided (Sami, all recommended):** plugin trim in this project only; graphify strict mode; caveman standard level (not ultra); mirror the setup into the parent folder.
@@ -97,14 +97,14 @@ The steps are the sprints in `docs/spec/08-Implementation-Plan.md`. Each step's 
 - **Fixed after first live use:** the router read the editor's attached `<browser_instruction>` block as a review request and attached a 1,014-node graph slice to "Proceed". It now routes only the user's own words, seeds the graph query from named symbols, and drops unanchored matches over 200 nodes (tests first; tooling tests 76 passed).
 - **Not done:** `caveman-compress` on `CLAUDE.md` (sends the file to a model and rewrites the human-read hub); a lower MCP output cap or thinking budget (both cut accuracy). The claude.ai-connected skill sets (small-business, marketing, finance, apify, astronomer-data) can't be switched off from Claude Code settings.
 
-**2026-11-12 (10) — graphify and token savers. Branch `chore/agent-automation`, not committed.**
+**2026-11-12 (10) — graphify and token savers. Branch `chore/agent-automation`, committed in `ab1ae7c`.**
 
 - **Asked by Sami:** set up graphify and every token-saving tool, without compromise.
 - **Decided (in Claude):** context-mode skipped (its `ctx_execute` would bypass the Bash deny list and bash-guard); caveman on in every session; graphify with code and spec, then — after the spec pass cost ~395k plan tokens (estimate was 100–150k) and came out coarse with 1 doc↔code edge — keep the coarse spec layer and stop (a per-requirement re-run would cost ~1.5–2M and still not link to code; TR-IDs stay with `spec-scout`). Considered and left out: token-savior, code-review-graph, Serena, claude-context, token-optimizer, claude-code-router, claude-mem (reasons in `.claude/rules/agent-setup.md`).
 - **Plan tokens spent this session on graphify:** spec pass 339k in / 55k out; TRD granularity test 125k / 41k; community labels 117k / 4k.
 - **Left for a human:** auto mode refused installing graphify's git hooks (persistence) — run `graphify hook install` to refresh the graph on commit, checkout and pull; restart the editor so `rtk` is on PATH for the global hook. Still open from (9): the allow rules for cargo and filtered typecheck.
 
-**2026-11-11 (9) — Claude Code automation for the build, Tauri/Rust and token use. Branch `chore/agent-automation`, not committed.**
+**2026-11-11 (9) — Claude Code automation for the build, Tauri/Rust and token use. Branch `chore/agent-automation`, committed in `ab1ae7c`.**
 
 - **Asked by Sami:** recommend automations, then "more for Tauri and Rust, and for reducing token usage, do not compromise"; then "proceed".
 - **Decided (in Claude, recommended options):** CSP gains `localhost:3100` (default port stays 3000); `superpowers` and `ponytail` plugins off for this project (the project loop covers them); the warehouse project's SSH/production allow rules moved out of user settings into that project; Visual Studio 2022 Build Tools installed so Rust links locally.
