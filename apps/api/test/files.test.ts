@@ -72,6 +72,16 @@ describe("loadFileConfig", () => {
     expect(config.scanner).toBeInstanceOf(ExternalScanner);
   });
 
+  it("allows the signature scanner in production only on the Cloudflare client demo, and only with S3 (A32)", () => {
+    const demo = { NODE_ENV: "production", DEPLOYMENT: "cloudflare-demo", FILE_STORE_BUCKET: "mms-demo-scans", FILE_SCANNER: "signature" };
+    const config = loadFileConfig(demo);
+    expect(config.store).toBeInstanceOf(S3FileStore);
+    expect(config.scanner).toBeInstanceOf(SignatureScanner);
+    expect(() => loadFileConfig({ ...demo, FILE_STORE: "disk" })).toThrow(/must be s3/);
+    expect(() => loadFileConfig({ ...demo, DEPLOYMENT: "aws" })).toThrow(/must be external/);
+    expect(() => loadFileConfig({ ...demo, DEPLOYMENT: "Cloudflare-Demo" })).toThrow(/must be external/);
+  });
+
   it("refuses unknown settings rather than guessing", () => {
     expect(() => loadFileConfig({ FILE_STORE: "ftp" })).toThrow(/Unknown FILE_STORE/);
     expect(() => loadFileConfig({ FILE_SCANNER: "none" })).toThrow(/Unknown FILE_SCANNER/);

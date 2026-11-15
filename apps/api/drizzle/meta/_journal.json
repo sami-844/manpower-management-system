@@ -92,6 +92,13 @@
       "when": 1794336005695,
       "tag": "0012_company_documents_and_scan_status",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794686618335,
+      "tag": "0013_app_role_membership",
+      "breakpoints": true
     }
   ]
 }

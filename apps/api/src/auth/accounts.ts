@@ -12,20 +12,33 @@ import { publicUser } from "./auth.service";
 import { generateTemporaryPassword, hashPassword } from "./passwords";
 import type { RoleKey } from "./permissions";
 
+/**
+ * Creates one account unless the username exists. Without `chosenPassword` it gets a temporary
+ * password that must be replaced at first sign-in; with one (the client demo's DEMO_PASSWORD, chosen
+ * by the person deploying it, A32) nothing has to be replaced and no password is returned.
+ */
 export async function provisionUser(
   db: Database,
   input: { username: string; displayName: string; roles: RoleKey[]; entityId: string; createdBy: string },
+  chosenPassword?: string,
 ): Promise<{ created: boolean; temporaryPassword?: string }> {
   const username = input.username.toLowerCase();
   const [existing] = await db.base.select({ id: users.id }).from(users).where(eq(sql`lower(${users.username})`, username));
   if (existing) return { created: false };
-  const temporaryPassword = generateTemporaryPassword();
-  const passwordHash = await hashPassword(temporaryPassword);
+  const temporaryPassword = chosenPassword === undefined ? generateTemporaryPassword() : undefined;
+  const passwordHash = await hashPassword(chosenPassword ?? temporaryPassword!);
   const audit = new AuditService(db);
   await db.base.transaction(async (tx) => {
     const [user] = await tx
       .insert(users)
-      .values({ username, displayName: input.displayName, passwordHash, createdBy: input.createdBy, updatedBy: input.createdBy })
+      .values({
+        username,
+        displayName: input.displayName,
+        passwordHash,
+        isPasswordChangeRequired: chosenPassword === undefined,
+        createdBy: input.createdBy,
+        updatedBy: input.createdBy,
+      })
       .returning();
     await tx.insert(userRoles).values(
       input.roles.map((role) => ({ userId: user!.id, roleKey: role, entityId: input.entityId, validFrom: omanClock.today(), createdBy: input.createdBy })),
@@ -53,7 +66,7 @@ async function hasActiveAdmin(db: Database): Promise<boolean> {
   return rows.length > 0;
 }
 
-const DEMO_USERS: { username: string; displayName: string; roles: RoleKey[] }[] = [
+export const DEMO_USERS: { username: string; displayName: string; roles: RoleKey[] }[] = [
   { username: "owner", displayName: "Owner (demo)", roles: ["owner"] },
   { username: "ops.manager", displayName: "Operations manager (demo)", roles: ["ops_manager"] },
   { username: "hr.officer", displayName: "HR / PRO officer (demo)", roles: ["hr_pro"] },

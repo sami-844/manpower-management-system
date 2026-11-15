@@ -3,8 +3,10 @@
   "private": true,
   "packageManager": "bun@1.4.2",
   "scripts": {
+    "build": "bun run --filter @mms/web build:client-demo",
+    "deploy": "wrangler deploy",
     "build:demo": "bun run --filter @mms/web build:demo",
-    "deploy": "bun run build:demo && wrangler deploy",
+    "deploy:demo": "bun run build:demo && wrangler deploy -c wrangler.demo.jsonc",
     "gates": "bun scripts/gates.ts",
     "agent:doctor": "bun scripts/agent-doctor.ts",
     "typecheck": "bun run --filter '*' typecheck && bun run typecheck:tooling",
@@ -35,5 +37,30 @@
     "@types/bun": "^1.4.4",
     "typescript": "^5.6.0",
     "wrangler": "4.158.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DATABASE_URL": {
+        "description": "Connection string of an empty PostgreSQL 16+ database for **fictional data only**, e.g. a free [Neon](https://neon.tech) project: Dashboard → Connect → turn *Connection pooling* **off** → copy the `postgresql://…?sslmode=require` string. The first start migrates it and seeds fictional workers."
+      },
+      "APP_SECRET": {
+        "description": "Any random string of **at least 32 characters** (e.g. `openssl rand -base64 33`). Signs sign-in tokens and seals authenticator secrets; changing it later signs everyone out and voids their two-factor set-up."
+      },
+      "DEMO_PASSWORD": {
+        "description": "Password for the six demo accounts (`owner`, `ops.manager`, `hr.officer`, `payroll.officer`, `finance.officer`, `admin`). **At least 12 characters**, not containing any of those usernames. Give it only to the people you show the demo to."
+      },
+      "R2_ACCOUNT_ID": {
+        "description": "Your Cloudflare **account ID** (32 characters): R2 Object Storage → Overview, right-hand side."
+      },
+      "R2_ACCESS_KEY_ID": {
+        "description": "From R2 Object Storage → **Manage API tokens** → Create token with *Object Read & Write* on the `mms-demo-scans` bucket: the **Access Key ID**."
+      },
+      "R2_SECRET_ACCESS_KEY": {
+        "description": "The **Secret Access Key** shown once with the token above."
+      },
+      "SCANS_BUCKET_NAME": {
+        "description": "Name of the R2 bucket for document scans. Leave `mms-demo-scans`; if you rename the bucket above, use the same name here."
+      }
+    }
   }
 }

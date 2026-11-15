@@ -7,6 +7,7 @@ COPY packages/core/package.json packages/core/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/desktop/package.json apps/desktop/
+COPY apps/cloudflare/package.json apps/cloudflare/
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY packages/core packages/core
 COPY apps/api apps/api

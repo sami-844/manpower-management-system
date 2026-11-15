@@ -89,6 +89,26 @@ describe("SignIn (S-01)", () => {
     ]);
   });
 
+  it("warns on the Cloudflare client demo that the data is fictional (A32), and only there", async () => {
+    vi.stubEnv("VITE_CLIENT_DEMO", "true");
+    renderSignIn();
+    expect(await screen.findByText(/Client demo: every person and figure here is fictional/)).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it("on a client demo that is missing its secrets, says which ones instead of blaming the connection", async () => {
+    routes["/api/auth/refresh"] = [() => json(503, { code: "NOT_CONFIGURED", message: "The client demo is not set up: DATABASE_URL is not set" })];
+    renderSignIn();
+    expect(await screen.findByText("The client demo is not set up: DATABASE_URL is not set")).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't reach the server/)).not.toBeInTheDocument();
+  });
+
+  it("shows no client demo notice on an ordinary build", async () => {
+    renderSignIn();
+    expect(await screen.findByLabelText("Username")).toBeInTheDocument();
+    expect(screen.queryByText(/Client demo/)).not.toBeInTheDocument();
+  });
+
   it("opens the owner's dashboard when the session is restored on start", async () => {
     routes["/api/auth/refresh"] = [() => grant()];
     routes["/api/auth/me"] = [() => me(null, ["owner", "finance"])];
@@ -101,6 +121,8 @@ describe("SignIn (S-01)", () => {
     [423, { code: "ACCOUNT_LOCKED", message: "Locked.", retryAfterSeconds: 540 }, "This account is locked after too many failed sign-ins. Try again in 9 minutes, or ask the system admin to unlock it."],
     [403, { code: "ACCOUNT_DISABLED", message: "Disabled." }, "This account has been turned off. Ask the system admin if you still need access."],
     [429, { code: "TOO_MANY_ATTEMPTS", message: "Too many." }, "Too many sign-in attempts from this network. Wait a few minutes, then try again."],
+    [503, { code: "NOT_CONFIGURED", message: "The client demo is not set up: DATABASE_URL is not set" }, "The client demo is not set up: DATABASE_URL is not set"],
+    [503, { code: "API_NOT_STARTED", message: "The client demo's API did not start. Open the logs." }, "The client demo's API did not start. Open the logs."],
   ])("explains a %i %o in plain words", async (status, body, message) => {
     routes["/api/auth/login"] = [() => json(status, body)];
     const u = renderSignIn();

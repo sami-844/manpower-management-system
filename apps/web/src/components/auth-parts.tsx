@@ -87,6 +87,11 @@ export function signInMessage(err: unknown): string {
       return "This account has been turned off. Ask the system admin if you still need access.";
     case "TOO_MANY_ATTEMPTS":
       return "Too many sign-in attempts from this network. Wait a few minutes, then try again.";
+    case "NOT_CONFIGURED":
+    case "API_NOT_STARTED":
+      // The Cloudflare client demo's Worker says which secret is missing, or where to read why the API
+      // did not start (A32); the deployer needs exactly that, not a generic server error.
+      return err.message;
     default:
       return err.status >= 500 ? "Something went wrong on our side. Try again in a minute." : err.message;
   }

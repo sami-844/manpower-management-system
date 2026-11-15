@@ -54,22 +54,65 @@ bun run dev:web                         # web on :5173 (VITE_API_URL=http://loca
 Open http://localhost:5173, choose a role on the sign-in screen, and switch roles from the
 user menu. Ctrl+K searches workers, clients, sites and screens.
 
-### Hosted demo on Cloudflare
+### Client demo on Cloudflare (with its own backend)
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sami-844/manpower-management-system)
 
-The button copies this repository into your GitHub account and deploys the demo to Cloudflare
-Workers on a free account. No database or settings are needed. Keep the suggested commands:
-the deploy command runs the root `deploy` script, which builds the demo and uploads it. You get a `*.workers.dev` link to send to clients, and
-every push to your copy redeploys it.
+The button sets up the whole system on Cloudflare: the web app, the real API (sign-in, rules,
+audit, scans) in a Cloudflare Container, a Postgres database you bring, and an R2 bucket for
+scans. It is a **client demo with fictional data only** (DECISIONS A32): production runs on AWS
+(A10), and real workers' details never go here. The screens say so on every page.
 
-The hosted build (`bun run build:demo`) is static. It answers its own API calls in the
-browser from the same rule engines (`@mms/core`) and fictional workers
-(`apps/web/src/demo/server.ts`). Each visitor's changes stay in their own tab and reset on
-reload, and the header shows a **Hosted demo** badge. It is for demos only: production
-runs on AWS (DECISIONS A10, A20).
+Before you press it:
 
-To deploy from this machine instead: `bunx wrangler login`, then `bun run deploy`.
+1. **Cloudflare Workers Paid plan** ($5/month): Containers need it.
+2. **A Postgres database**, empty, PostgreSQL 16 or newer: a free [Neon](https://neon.tech) project
+   works. Copy its **direct** connection string (Connect → turn *Connection pooling* off;
+   `postgresql://…?sslmode=require`): the pooled one breaks the start-up migrations and the
+   per-request database role.
+3. **An R2 access key**: in the Cloudflare dashboard, R2 Object Storage → Manage API tokens →
+   Create token with *Object Read & Write*. Keep the Access Key ID and Secret Access Key, and
+   note your account ID from the R2 overview page.
+
+Then press the button. It copies this repository into your GitHub account, creates the R2
+bucket and asks for six secrets (each one is explained on the form):
+
+| Secret | What to enter |
+|---|---|
+| `DATABASE_URL` | The Neon (or other Postgres 16+) connection string |
+| `APP_SECRET` | Any random string of at least 32 characters (`openssl rand -base64 33`) |
+| `DEMO_PASSWORD` | The password for the six demo accounts, at least 12 characters |
+| `R2_ACCOUNT_ID` | Your Cloudflare account ID |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | The R2 token's keys |
+
+Keep the suggested build and deploy commands (`bun run build`, `bun run deploy`). You get a
+`*.workers.dev` link, and every push to your copy redeploys it.
+
+- **First visit:** the container starts, applies the migrations, fills the database with
+  fictional workers, sites, clients and document masters, and creates six accounts: `owner`,
+  `ops.manager`, `hr.officer`, `payroll.officer`, `finance.officer` and `admin`, all with
+  `DEMO_PASSWORD`. This takes a minute or two once; later starts take seconds and change nothing.
+- **Idle:** after 15 minutes without requests the container sleeps; the next request wakes it.
+  The data stays in Postgres and the scans in R2.
+- **Missing or wrong secret:** the sign-in screen names exactly which one, or says the API did not
+  start and points to the Worker's logs. Change it in Workers → your Worker → Settings → Variables
+  and Secrets; it applies the next time the container starts.
+- **Shared accounts:** everyone you give `DEMO_PASSWORD` to shares the six accounts, and `admin`
+  and `owner` can create users and reset passwords. Each container start (after 15 idle minutes)
+  puts the six back as they were: the demo password (also after you change the secret), two-factor
+  off, no lockout, enabled, their role. Users created inside the demo are left as they are.
+- **Browser-only demo:** the same link with `/demo/` opens the demo that needs no sign-in
+  (choose a role; fictional data in your own browser tab, reset on reload). It never wakes the container.
+- **EU bucket:** if your R2 bucket uses the EU jurisdiction, add a secret `R2_ENDPOINT` with
+  `https://<account-id>.eu.r2.cloudflarestorage.com`.
+- **Scans:** checked for type and size as in production; the virus check is the test-signature
+  scanner (A32), so upload only fictional documents.
+
+From this machine instead (needs Docker): `bunx wrangler login`, then `bun run build && bun run deploy`.
+`wrangler dev` can't run the container on Windows (use WSL there).
+
+The browser-only demo can also be deployed on its own, on the free plan, with no database:
+`bun run deploy:demo` (`wrangler.demo.jsonc`, A20).
 
 ## How we build (agentic engineering loop)
 
@@ -142,6 +185,10 @@ bun run --filter @mms/desktop test:rust
   malware-scanned) and `AWS_REGION`; the API refuses the development disk store and test scanner
   there. Until the bucket's scan results are recorded (DEFERRED X15) new scans stay unopenable.
   In development scans go to `FILE_STORE_DIR` (default: the system temp folder).
+- Database: PostgreSQL 16 or newer (Amazon RDS: pin the engine version). Run the migrations as the
+  user that owns the database: migration 0013 lets it act as the `mms_app` role every request uses.
+  If another user created `mms_app`, run once as that user or a superuser:
+  `GRANT mms_app TO <migrating user> WITH SET TRUE;`
 - Set `AUTH_ACCESS_KEY` and `AUTH_SEAL_KEY` (base64, 32 bytes each, different) and
   `WEB_ORIGIN` in production; the API refuses to start without them. Create the first
   admin with `bun run --cwd apps/api auth:bootstrap-admin <username>`.

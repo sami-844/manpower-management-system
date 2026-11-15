@@ -1,0 +1,9 @@
+# Secrets for the Cloudflare client demo (DECISIONS A32). The Deploy to Cloudflare button asks for each of
+# these (descriptions in package.json "cloudflare"); for `wrangler dev`, copy to .dev.vars (git-ignored).
+# Placeholders only: never commit real values. Fictional data only: never a real worker's details.
+DATABASE_URL=postgresql://user:password@host/database?sslmode=require
+APP_SECRET=replace-with-at-least-32-random-characters
+DEMO_PASSWORD=replace-with-12-or-more-characters
+R2_ACCOUNT_ID=0123456789abcdef0123456789abcdef
+R2_ACCESS_KEY_ID=replace-with-r2-access-key-id
+R2_SECRET_ACCESS_KEY=replace-with-r2-secret-access-key

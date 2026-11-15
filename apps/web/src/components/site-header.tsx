@@ -10,6 +10,7 @@ import { screenByPath } from "@/app/screens";
 import { useCurrentScreen } from "@/app/use-current-screen";
 import { CommandMenu, useCommandMenuShortcut } from "@/components/command-menu";
 import { SampleDataBadge } from "@/components/page-header";
+import { CLIENT_DEMO_NOTICE, isClientDemo } from "@/lib/deployment";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
@@ -74,6 +75,11 @@ export function SiteHeader() {
           {import.meta.env.MODE === "demo" && (
             <span className="hidden md:inline-flex">
               <SampleDataBadge label="Hosted demo" tip="Every person and figure here is fictional. Your changes stay in this browser tab and reset when you reload." />
+            </span>
+          )}
+          {isClientDemo() && (
+            <span className="hidden md:inline-flex">
+              <SampleDataBadge label="Client demo" tip={CLIENT_DEMO_NOTICE} />
             </span>
           )}
           <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="w-9 justify-start gap-2 px-2 text-muted-foreground sm:w-64">

@@ -1,0 +1,15 @@
+{
+  // The tests and the pure config they cover, on Bun's types (they never import the Worker or Cloudflare modules).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": ["bun"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/config.ts", "src/**/*.test.ts"]
+}

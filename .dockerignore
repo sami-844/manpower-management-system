@@ -1,0 +1,14 @@
+# The API image builds from the repository root (apps/api/Dockerfile, and the Cloudflare client demo's
+# image_build_context "."). Keep the context to sources: the image runs its own `bun install`.
+**/node_modules
+**/dist
+**/.wrangler
+.git
+graphify-out
+apps/desktop/src-tauri/target
+apps/web/test-results
+apps/web/playwright-report
+**/.env
+**/.env.*
+**/.dev.vars
+!**/.env.example

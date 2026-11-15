@@ -31,7 +31,12 @@ async function seed() {
     await db.sql.end();
     return;
   }
+  await seedFictional(db, today, count);
+  await db.sql.end();
+}
 
+/** Three sites, `count` fictional workers with their papers, then the masters data. Also used by the client demo (A32). */
+export async function seedFictional(db: Database, today: CalendarDate, count: number): Promise<void> {
   await db.orm.insert(sites).values([
     { code: "SOH-PORT", name: "Sohar Port Phase 3", clientName: "Gulf Build LLC", requiredDocuments: ["sohar_gate_pass"] },
     { code: "MCT-TWR", name: "Muscat Tower Block B", clientName: "Al Noor Contracting", requiredDocuments: ["trade_certificate"] },
@@ -66,7 +71,6 @@ async function seed() {
 
   console.log(`Seeded ${count} fictional workers and 3 sites`);
   await seedMasters(db, today);
-  await db.sql.end();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -103,7 +107,7 @@ const CLIENTS = [
   { legalName: "Batinah Steel", cr: "3000203", crExpiry: null }, // CR not recorded yet: shows as missing
 ];
 
-async function seedMasters(db: Database, today: CalendarDate) {
+export async function seedMasters(db: Database, today: CalendarDate) {
   const sql = db.sql;
   const by = "seed";
   const paper = async (owner: { sponsorId?: string; clientId?: string }, type: OrganisationDocumentType, number: string, days: number) => {
@@ -201,7 +205,9 @@ async function seedMasters(db: Database, today: CalendarDate) {
   console.log(`Masters: company papers, ${SUBCONTRACTORS.length} sub-contractors, ${CLIENTS.length} clients, ${docs.length} worker documents`);
 }
 
-seed().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  seed().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api, ApiError, type NextStep } from "@/lib/api";
 import { DEMO_ACCOUNTS, ROLE_LABELS } from "@/lib/roles";
 import { useSession } from "@/lib/session";
+import { CLIENT_DEMO_NOTICE, isClientDemo } from "@/lib/deployment";
 import { initials } from "@/components/nav-user";
 
 const DEMO = import.meta.env.MODE === "demo";
@@ -128,6 +129,7 @@ function PasswordStep() {
         <CardDescription>Use the username and password the system admin gave you.</CardDescription>
       </CardHeader>
       <CardContent className="mt-4 space-y-4">
+        {isClientDemo() && <Alert>{CLIENT_DEMO_NOTICE}</Alert>}
         {error ? <ErrorAlert id={errorId}>{error}</ErrorAlert> : notice && <Alert>{notice}</Alert>}
         <FieldGroup className="gap-4">
           <Field data-invalid={!!error}>
@@ -327,7 +329,7 @@ function DemoSignIn({ from }: { from?: string }) {
           </Button>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheckIcon className="size-3.5" />
-            Demo only: live accounts sign in with a password and an authenticator app.
+            Demo only: live accounts sign in with a password, plus an authenticator code if they turned two-factor on.
           </p>
         </CardFooter>
       </form>

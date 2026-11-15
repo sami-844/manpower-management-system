@@ -172,12 +172,20 @@ export interface FileConfig {
 
 export const FILE_CONFIG = Symbol("FILE_CONFIG");
 
+/** `DEPLOYMENT` value of the Cloudflare client demo (fictional data only, A32). Set by its Worker, never by hand. */
+export const CLIENT_DEMO = "cloudflare-demo";
+
 export function loadFileConfig(env: Record<string, string | undefined> = process.env): FileConfig {
   const production = env.NODE_ENV === "production";
   const kind = env.FILE_STORE ?? (production ? "s3" : "disk");
   const scannerKind = env.FILE_SCANNER ?? (production ? "external" : "signature");
   if (production && kind !== "s3") throw new Error("FILE_STORE must be s3 in production (A27)");
-  if (production && scannerKind !== "external") throw new Error("FILE_SCANNER must be external in production: the signature scanner detects nothing real");
+  // The Cloudflare client demo holds fictional data only and has no bucket scanning (A32): the test
+  // signature scanner is allowed there, and nowhere else in production.
+  const clientDemo = env.DEPLOYMENT === CLIENT_DEMO;
+  if (production && scannerKind !== "external" && !(clientDemo && scannerKind === "signature")) {
+    throw new Error("FILE_SCANNER must be external in production: the signature scanner detects nothing real");
+  }
 
   let store: FileStore;
   if (kind === "s3") {

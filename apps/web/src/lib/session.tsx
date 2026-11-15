@@ -5,7 +5,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, login, logout, onSessionChange, restoreSession, type AuthGrant, type AuthUser, type NextStep } from "./api";
+import { api, ApiError, login, logout, onSessionChange, restoreSession, type AuthGrant, type AuthUser, type NextStep } from "./api";
 import { canSee, DEMO_ROLE_PERMISSIONS, V1_ROLES, type Area, type DemoAccount, type V1Role } from "./roles";
 import { currentAccount, setCurrentUser } from "./user";
 
@@ -96,9 +96,12 @@ export function SessionProvider({ children, fallback = null }: { children: React
     const off = onSessionChange((grant) => {
       loading.current = apply(grant);
     });
-    restoreSession().catch(() =>
-      setState((s) => (s.ready ? s : { ...s, ready: true, notice: "We couldn't reach the server. Check your connection and try again." })),
-    );
+    restoreSession().catch((err: unknown) => {
+      // The Cloudflare client demo's Worker names the secrets still missing, or says the API did not start (A32).
+      const deployment = err instanceof ApiError && (err.code === "NOT_CONFIGURED" || err.code === "API_NOT_STARTED");
+      const notice = deployment ? err.message : "We couldn't reach the server. Check your connection and try again.";
+      setState((s) => (s.ready ? s : { ...s, ready: true, notice }));
+    });
     return off;
   }, [qc]);
 

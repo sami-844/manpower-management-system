@@ -137,6 +137,7 @@ The details — every MCP server and its safety limits, the subagents, each hook
 | `packages/core` | Pure domain engines (`checkEligibility`, money, dates, renewals, masters) → `.claude/rules/core.md` | Build steps, tests first | Before writing any rule: it may already exist |
 | `apps/api` | NestJS on Bun, auth, files, masters, sponsors, migrations, API tests → `.claude/rules/api.md` | Build steps | Any API or data step |
 | `apps/web`, `packages/ui`, demo | React interface, e2e, shadcn tokens, hosted demo → `.claude/rules/web.md` | Build steps | Any UI step |
+| `apps/cloudflare`, `wrangler.jsonc`, `.dev.vars.example` | The Cloudflare client demo (DECISIONS A32): Worker serving the web app and `/demo/`, `/api/*` to a Container running the API image; secrets the Deploy button asks for → `.claude/rules/web.md` | Build steps | Deploying or changing the client demo |
 | `apps/desktop` | Tauri 2 shell and Rust print spooler → `.claude/rules/desktop.md` | Build steps | Printing and desktop work |
 | `docker-compose.yml` | Local PostgreSQL 16 (`mms_dev`, plus test database) | Humans | Local setup |
 | **Upstream (`third_party/`)** | Verbatim JSM (video set and v2) and Karpathy sources, with commits and licences in `third_party/README.md` | Upstream only; never edited | To compare against or take an update |

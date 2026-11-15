@@ -1,9 +1,36 @@
-// Hosted client demo on Cloudflare Workers (DECISIONS A20). Static assets only: the web app built
-// with `--mode demo` answers its API calls in the browser from fictional data (apps/web/src/demo/server.ts).
-// Production hosting stays AWS (A10). Deploy: the README button, or `bun run deploy` after `bunx wrangler login`.
+// Cloudflare client demo (DECISIONS A32): the real sign-in, API and database, with fictional data only.
+// Production hosting stays AWS (A10). Deployed by the README's "Deploy to Cloudflare" button (Workers Paid plan,
+// for Containers), or from a machine with Docker: `bunx wrangler login`, then `bun run build && bun run deploy`.
+//   /           the web app (signed in, live API)            apps/web/dist
+//   /demo/      the browser-only demo (role picker, A20)     apps/web/dist/demo
+//   /api/*      one Container running apps/api/Dockerfile    apps/cloudflare/src/worker.ts
+// Secrets the button asks for are listed in .dev.vars.example and described in package.json "cloudflare".
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "manpower-management-system",
+  "main": "apps/cloudflare/src/worker.ts",
   "compatibility_date": "2026-11-04",
-  "assets": { "directory": "./apps/web/dist" }
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./apps/web/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "containers": [
+    {
+      "class_name": "MmsApi",
+      "image": "./apps/api/Dockerfile",
+      "image_build_context": ".",
+      // One instance: one database pool, one request limiter, and start-up migrations never race.
+      "max_instances": 1,
+      "instance_type": "basic"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API", "class_name": "MmsApi" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MmsApi"] }],
+  // The button creates this bucket. The API reaches it through R2's S3 API with the R2_* secrets.
+  "r2_buckets": [{ "binding": "SCANS", "bucket_name": "mms-demo-scans" }],
+  "vars": { "SCANS_BUCKET_NAME": "mms-demo-scans" }
 }
