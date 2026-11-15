@@ -53,7 +53,7 @@
         "description": "Your Cloudflare **account ID** (32 characters): R2 Object Storage → Overview, right-hand side."
       },
       "R2_ACCESS_KEY_ID": {
-        "description": "From R2 Object Storage → **Manage API tokens** → Create token with *Object Read & Write* on the `mms-demo-scans` bucket: the **Access Key ID**."
+        "description": "From R2 Object Storage → **Manage API tokens** → Create token with *Object Read & Write* applied to **all buckets** (the bucket below is created only during this deploy; to scope the token to one bucket, create it first and keep its name): the **Access Key ID**."
       },
       "R2_SECRET_ACCESS_KEY": {
         "description": "The **Secret Access Key** shown once with the token above."

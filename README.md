@@ -61,18 +61,27 @@ user menu. Ctrl+K searches workers, clients, sites and screens.
 The button sets up the whole system on Cloudflare: the web app, the real API (sign-in, rules,
 audit, scans) in a Cloudflare Container, a Postgres database you bring, and an R2 bucket for
 scans. It is a **client demo with fictional data only** (DECISIONS A32): production runs on AWS
-(A10), and real workers' details never go here. The screens say so on every page.
+(A10), and real workers' details never go here. The sign-in screen says so, and so does a badge in
+the header on screens wider than a phone.
 
 Before you press it:
 
-1. **Cloudflare Workers Paid plan** ($5/month): Containers need it.
+1. **Cloudflare Workers Paid plan** ($5/month): Containers need it. The plan includes about 25
+   hours a month of the container being awake; beyond that, Cloudflare's published rates (November
+   2026) come to about one US cent per awake hour. It sleeps after 15 minutes without requests, and
+   a sleeping container costs nothing. Note that opening the sign-in page wakes it.
 2. **A Postgres database**, empty, PostgreSQL 16 or newer: a free [Neon](https://neon.tech) project
    works. Copy its **direct** connection string (Connect → turn *Connection pooling* off;
    `postgresql://…?sslmode=require`): the pooled one breaks the start-up migrations and the
    per-request database role.
 3. **An R2 access key**: in the Cloudflare dashboard, R2 Object Storage → Manage API tokens →
-   Create token with *Object Read & Write*. Keep the Access Key ID and Secret Access Key, and
-   note your account ID from the R2 overview page.
+   Create token with *Object Read & Write*, applied to **all buckets** (the button creates the
+   `mms-demo-scans` bucket only during the deploy). To scope it to one bucket instead, create
+   `mms-demo-scans` yourself first and keep that name on the form. Keep the Access Key ID and
+   Secret Access Key, and note your account ID from the R2 overview page.
+4. **Deployed the earlier browser-only demo with this button?** It used the same Worker name,
+   `manpower-management-system`. Give the new one another name on the form (or delete the old
+   Worker first); otherwise a push to the old copy would redeploy the static demo over the new one.
 
 Then press the button. It copies this repository into your GitHub account, creates the R2
 bucket and asks for six secrets (each one is explained on the form):

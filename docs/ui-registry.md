@@ -46,6 +46,13 @@ Built 2026-11-09 for the Version 1 demo foundation (see DECISIONS A16–A18).
 | S-44 Document masters | `pages/masters/Masters.tsx` | `PageHeader`; one-line summary (tabular counts); one `section` per group (In House, Purchase, Sales) with a responsive card grid (1 column on a phone, 2 / 3 wider) of links, each with the master's number (mono), label and `StatusBadge` counts (expired, missing, due, valid, no expiry, not verified; zeros left out). Skeletons while loading |
 | S-45 Master register | `pages/masters/MasterRegister.tsx` | `PageHeader` (label, "Master N" chip, Add client / Add sub-contractor top-right); state counts as pressable filter tiles (the S-09 Renewals pattern, `?state=` in the URL); `DataTable` with subject (worker link, code, engagement and sponsor), masked number, dates, days left in words, state `StatusBadge` (icon + word: Expired, Missing, Due, Valid, No expiry date), verified by whom, scan state; row actions Record/Renew (`Dialog`, native date inputs), Verify, Upload scan, View scan, each shown only when `useSession().allows(permission)`; empty states say who adds what |
 
+### Cloudflare client demo notices (A32) — 2026-11-15
+
+| Where | File | How it applies the brief |
+|---|---|---|
+| S-01 Sign in | `pages/shell/SignIn.tsx`, `lib/deployment.ts` | On a `VITE_CLIENT_DEMO=true` build, a neutral `Alert` above the fields: "Client demo: every person and figure here is fictional. Don't enter real personal data." A `NOT_CONFIGURED` or `API_NOT_STARTED` answer from the Worker is shown in its own words (the deployer needs the secret's name), on sign-in and when the session is restored |
+| Header | `components/site-header.tsx` | The same `SampleDataBadge` as the browser-only demo, labelled "Client demo", tooltip with the notice; hidden below `md` like that badge, so on a phone only the sign-in screen carries the notice |
+
 ### My account (S-46) — 2026-11-11
 
 | Screen | File | How it applies the brief |
